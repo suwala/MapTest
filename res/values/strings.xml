@@ -1,0 +1,11 @@
+<resources>
+
+    <string name="app_name">MapTest</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_settings">ポイントの消去</string>
+    <string name="title_activity_main">MapTest</string>
+    <string name="menu_timeset">更新間隔の設定</string>
+    <string name="menu_path">これまで記録</string>
+    <string name="menu_now">現在地の取得</string>
+
+</resources>
