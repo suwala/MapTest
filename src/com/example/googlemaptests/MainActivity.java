@@ -23,7 +23,10 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.provider.ContactsContract.CommonDataKinds.Event;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -34,14 +37,21 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
+import android.text.Html;
+import android.text.Html.ImageGetter;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.Gallery;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.widget.ZoomControls;
 import android.support.v4.app.NavUtils;
@@ -61,6 +71,12 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 	 * distance(GeoP,GeoP)で二点の距離が求められるらしい
 	 * 
 	 * LocationManeger.removeUpdates(this);で位置情報リクの停止
+	 * 
+	 * Location(引数)　の引数は何に使うのか
+	 * 
+	 * protected Dialog onCreateDialog(int id)を使って
+	 * ダイアログにレイアウトを流し込むことに成功
+	 * グリッドビューを流し込んでアイコンリストが作れるかも
 	 * 
 	 * 
 	 */
@@ -99,9 +115,10 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		
 		Date date = new Date(System.currentTimeMillis());
 		//2012-09-10と帰ってくる
-		Log.d("test",date.toString());
+		Log.d("date.toString",date.toString());
 
 
 		map = (MapView)findViewById(R.id.mapview);
@@ -157,37 +174,43 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		 * btn.setOnClickListener (new onClickButton(c));で実装
 		 * 
 		 */
-		class onClickButton implements OnClickListener{
+		class onClickButton extends MainActivity implements OnClickListener{
 
-			MapController c;
-			public onClickButton(MapController c){
-				this.c = c;
-			}
-
+			private ArrayList<GeoPoint> gp;
+			private Context context;
+			private MapView map;
 			
+			public onClickButton(MapController c,MainActivity mainActiovoty,Context context,MapView map){
+				
+				this.gp = mainActiovoty.gp;
+				this.context = context;
+				this.map = map;
+			}
 			
 			@Override
 			public void onClick(View v) {
 				// TODO 自動生成されたメソッド・スタブ
 
-				
 				/*locationManager.getLastKnownLocationを使って現在地を取得
 				locationに入れてgeopointを取り出す
 				取得できない場合はエラー落ちするので対策を練ること
 				*/
-				Log.d("btn","おされたよ");
-				LocationManager locationManager = (LocationManager)MainActivity.this.getSystemService(Context.LOCATION_SERVICE);
-				Location myLocate = locationManager.getLastKnownLocation("gps");
-				if(myLocate!=null){
-					GeoPoint gp = new GeoPoint((int)(myLocate.getLatitude()*1e6), (int)(myLocate.getLongitude()*1e6));
-					this.c.animateTo(gp);
+				
+				if(!this.gp.isEmpty()){
+							
+					MapController mapcon = map.getController();
+					//getResources().getDrawable(R.drawable.icon01);
+					DrawOverlay.drawOverlay(context.getResources().getDrawable(R.drawable.icon06),this.gp.get(0),this.map);
+					mapcon.animateTo(this.gp.get(this.gp.size()-1));
+					Log.d("Button",this.gp.get(this.gp.size()-1).toString());
 				}else{
 					Toast.makeText(MainActivity.this, "現在地を取得できません", Toast.LENGTH_LONG).show();
 				}
 			}
 		}
 
-		btn.setOnClickListener (new onClickButton(c));
+		
+		btn.setOnClickListener (new onClickButton(c, MainActivity.this,this,this.map));
 
 
 
@@ -200,7 +223,8 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		
 		//LocationManagerの設定　GPS更新時間をPreferencesから読み込む　無い場合は15分に
 		this.setRequestLocation(readPreferences());
-		Log.d("prefs",String.valueOf(this.readPreferences()));
+		
+		Log.d("prefsの中身",String.valueOf(this.readPreferences()));
 		
 		
 
@@ -215,32 +239,37 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 			SQLiteDatabase db = dbh.getReadableDatabase();
 			boolean isEof;
 
-			SimpleDateFormat sdf1 = new SimpleDateFormat("'yyMMdd'");
-			Cursor cursor = db.query(sdf1.format(date), new String[]{"Longitude","Latitude"},null, null, null, null, null);
-
+			
+			SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+			Log.d("sdf1.format(date)",sdf1.format(date));
+			
+			//Cursor cursor = db.query(sdf1.format(date), new String[]{"Longitude","Latitude"},null, null, null, null, null);
+			
+					
+			Cursor cursor = db.query("date", new String[]{"Longitude","Latitude"},null, null, null, null, null);
+			
 			isEof = cursor.moveToFirst();
 			GeoPoint setGp;
 
 			while(isEof){
-				Log.d("GP",String.valueOf(this.gp.size()));
+				Log.d("GPのサイズ",String.valueOf(this.gp.size()));
 
 				setGp = new GeoPoint(cursor.getInt(1),cursor.getInt(0));
 				this.gp.add(setGp);
 				isEof = cursor.moveToNext();
+				Log.d("getGeoPoint",String.valueOf(cursor.getInt(1))+":"+String.valueOf(cursor.getInt(1)));
 			}
+			
+			/*
+			cursor = db.rawQuery("select count(*) from "+sdf1.format(date), null);
+			cursor.moveToLast();
+			Log.d("dbのレコード数",String.valueOf(cursor.getLong(0)));
+			*/
 
-			cursor.close();
-			db.close();
+			dbh.close();
 		}catch (Exception e) {
 			// TODO: handle exception
 		}
-		Log.d("GP","DB読み込み開始");
-		for(GeoPoint g:gp){
-			Log.d("GP",String.valueOf(g.getLongitudeE6())+":"+String.valueOf(g.getLatitudeE6()));
-		}
-		Log.d("GP","DB読み込み終了");
-
-
 
 		/*
 		 * locationで緯度経度を取得すれば起動時の現在地を取得可能
@@ -259,8 +288,16 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
         pinOverlay.addPoint(tokyo);
         pinOverlay.addPoint(osaka);
 		 */
-
-
+		
+		
+		Gallery gallery = new Gallery(this);
+		gallery.setBackgroundColor(Color.BLUE);
+		
+		gallery.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+		gallery.setGravity(Gravity.BOTTOM+Gravity.CENTER_HORIZONTAL);
+		map.addView(gallery);
+		
+		
 	}
 
 	@Override
@@ -290,16 +327,18 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 			this.startActivityForResult(i, 0);
 		}else if(item.getItemId() == R.id.menu_path){//軌跡の表示
 
+			//GP同士を線で結ぶ
 			LineOverlay lineOverlay = new LineOverlay(gp);
 			map.getOverlays().add(lineOverlay);
 			map.invalidate();
 
+			
+			//fに移動距離を計算して代入
 			Location location = new Location("now");
 			Location oldLocation = new Location("old");
-
-
-			//fに移動距離を計算して代入
+			
 			Float f=(float) 0;
+			
 			for(int i=0;i<gp.size()-1;i++){
 				location.setLatitude(gp.get(i+1).getLatitudeE6()/1E6);
 				location.setLatitude(gp.get(i+1).getLongitudeE6()/1E6);
@@ -310,7 +349,7 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 
 				f+=location.distanceTo(oldLocation);
 
-				Log.d("test",String.valueOf(f));
+				Log.d("移動距離(m)",String.valueOf(f));
 			}
 
 			/*
@@ -320,17 +359,14 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 			oldLocation.setLatitude(gp.get(1).getLatitudeE6()/1E6);
 			oldLocation.setLatitude(gp.get(1).getLongitudeE6()/1E6);*/
 
-			Toast totas = Toast.makeText(this, String.valueOf(f), 1000);
+			Toast totas = Toast.makeText(this, String.valueOf(f)+"m", 1000);
 			totas.show();
 
 			//	        for(Location l:this.oldLocation)
 			//	        		f += location.distanceTo(l);
 
-
-
-
-
-
+			Dialog dia = this.onCreateDialog(0);
+			dia.show();
 		}
 		return super.onOptionsItemSelected(item);
 	}
@@ -411,6 +447,7 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		MapController mapCtrl = map.getController();
 		mapCtrl.animateTo(gp);
 
+		/*
 		//pinに画像を読み込む
 		Drawable pin = getResources().getDrawable(R.drawable.icon04);
 		//pinを引数にしてPinItemizedOverlayのコンストラクタに渡す
@@ -419,15 +456,13 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		/*map.getOverlays().add()メソッドでMapViewのオーバーレイにpinOverlayを描画　
         pinOverlayはListでGeoPointを保持している　その保持しているポイント全てを描画する
         pinOverlayはローカルなのだからリストで保持する意味はあるのか?
-		 */        
+		 */     /*   
 		map.getOverlays().add(pinOverlay);
 		//addPoint(gp)メソッドでgpの位置に描画
 		pinOverlay.addPoint(gp);
+		
 
-		/*移動前の位置をoldLocationに保持しておき現在地との直線距離をメートルで求める　 初回のみ前回の位置がないので!=nullで回避
-        GeoPointだけでは求められないのか？ .distanceToの代わりがあれば・・
-		 
-
+		/*
 
 		if(this.oldLocation.isEmpty())
 			Log.d("test","空です");
@@ -505,4 +540,72 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		editor.putLong("time", l);
 		editor.commit();
 	}
+	
+	//指定したGP上のoverlayに画像を書き込むメソッド
+	public void drawOverlay(){
+		
+		//pinに画像を読み込む
+		Drawable pin = getResources().getDrawable(R.drawable.icon01);
+		//pinを引数にしてPinItemizedOverlayのコンストラクタに渡す
+		PinItemizedOverlay pinOverlay = new PinItemizedOverlay(pin);
+
+		/*map.getOverlays().add()メソッドでMapViewのオーバーレイにpinOverlayを描画　
+        pinOverlayはListでGeoPointを保持している　その保持しているポイント全てを描画する
+        pinOverlayはローカルなのだからリストで保持する意味はあるのか?
+		 */        
+		this.map.getOverlays().add(pinOverlay);
+		//addPoint(gp)メソッドでgpの位置に描画
+		pinOverlay.addPoint(this.gp.get(this.gp.size()-1));
+	}
+	
+	//ダイアログに画像を表示させる　しかし使わなかった！
+	public void onClickImgDailog(View v){
+		
+		ImageGetter imageGetter = new ImageGetter() {
+			
+			@Override
+			public Drawable getDrawable(String source) {
+				// TODO 自動生成されたメソッド・スタブ
+				
+				int id = Integer.parseInt(source);
+				Drawable d = getResources().getDrawable(id);
+				d.setBounds(0,0,d.getIntrinsicWidth(),d.getIntrinsicHeight());
+				Log.d("llogg",source);
+				return d;
+			}
+		};
+		
+		
+		AlertDialog alerdiDialog = new AlertDialog.Builder(this).setMessage(Html.fromHtml
+				("画像テスト<br><img src='"+R.drawable.ic_launcher +"'/>",imageGetter,null)).create();
+		alerdiDialog.show();
+		
+		
+		
+				
+	}
+
+	@Override
+	public boolean onTouchEvent(MotionEvent event) {
+		// TODO 自動生成されたメソッド・スタブ
+		Log.d("Main",String.valueOf(event.getX())+":"+String.valueOf(event.getY()));
+		return super.onTouchEvent(event);
+	}
+
+	
+	
+	protected Dialog onCreateDialog(int id){
+
+		LayoutInflater inflater = LayoutInflater.from(MainActivity.this);
+
+		final View ymView = inflater.inflate(R.layout.iconlist, null);
+		
+		LinearLayout layout = (LinearLayout)findViewById(R.id.iconLayout);
+		ImageView iv = (ImageView)findViewById(R.drawable.icon01);
+		
+		return new AlertDialog.Builder(this).setTitle("aaa")
+		.setView(ymView).create();
+		
+	}
+	
 }

@@ -50,6 +50,7 @@ public class LineOverlay extends Overlay{
 				
 				Log.d("LineGpSize",String.valueOf(this.gp.size()));
 			}
+			Log.d("test","aaa");
 		}
 	}
 	

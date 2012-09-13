@@ -15,6 +15,11 @@ import android.util.Log;
 
 public class DBHepler extends SQLiteOpenHelper {
 
+	
+	/*
+	 * table名を統一しないとエラーでまくり
+	 * MainActyで名前を決めるべきか
+	 */
 	private static final Integer VERSION = 1;
 	private static final CursorFactory FACTORY = null;
 	private static final String NAME = "MapTest.db";
@@ -30,10 +35,12 @@ public class DBHepler extends SQLiteOpenHelper {
 
 		Date date = new Date(System.currentTimeMillis());
 
-		//テーブル・カラム名に数字を使うときは''で囲まないとエラーになる MySqlだと先頭が数字のテーブル名は使えないぽい
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'yyMMdd'");
+		//
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 		
-		db.execSQL("create table if not exists "+sdf1.format(date)+"("+
+
+		
+		db.execSQL("create table if not exists date("+
 				"_id integer primary key autoincrement,"+
 				" Longitude integer not null,"+
 				" Latitude integer not null"+
@@ -52,7 +59,7 @@ public class DBHepler extends SQLiteOpenHelper {
 		
 		Date date = new Date(System.currentTimeMillis());
 
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'yyMMdd'");
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 		
 		
 		
@@ -60,7 +67,8 @@ public class DBHepler extends SQLiteOpenHelper {
 		for(GeoPoint g:gp){
 			val.put("Longitude", g.getLongitudeE6());
 			val.put("Latitude",g.getLatitudeE6());
-			db.insertOrThrow(sdf1.format(date), null, val);
+			//db.insertOrThrow(sdf1.format(date), null, val);
+			db.insert("date", null, val);
 		}
 		
 		
@@ -69,9 +77,9 @@ public class DBHepler extends SQLiteOpenHelper {
 	public void dbClear(SQLiteDatabase db){
 		
 		Date date = new Date(System.currentTimeMillis());
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'yyMMdd'");
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 		
-		db.execSQL("DELETE FROM "+sdf1.format(date));
+		db.execSQL("DELETE FROM "+"date");
 	}
 	
 	

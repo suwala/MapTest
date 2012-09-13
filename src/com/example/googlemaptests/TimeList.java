@@ -41,7 +41,6 @@ public class TimeList extends ListActivity{
 	protected void onCreate(Bundle savedInstanceState) {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onCreate(savedInstanceState);
-		//setContentView(R.layout.timelist);
 
 		ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1);
 		/* adapter.add アイテムを追加します
