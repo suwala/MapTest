@@ -5,4 +5,5 @@
     <!-- orderInCategoryは重要度　メニューで表示される順番？ -->
     <item android:id="@+id/menu_settime" android:orderInCategory="100" android:title="@string/menu_timeset"></item>
     <item android:id="@+id/menu_path" android:orderInCategory="100" android:title="@string/menu_path"></item>
+    <item android:id="@+id/menu_gpout" android:orderInCategory="100" android:title="@string/menu_gpout"></item>
 </menu>

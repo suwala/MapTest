@@ -20,38 +20,54 @@ public class DBHepler extends SQLiteOpenHelper {
 	 * table名を統一しないとエラーでまくり
 	 * MainActyで名前を決めるべきか
 	 */
-	private static final Integer VERSION = 1;
+	private static final Integer VERSION = 2;
 	private static final CursorFactory FACTORY = null;
 	private static final String NAME = "MapTest.db";
+	private String date;
+	
+	public DBHepler(Context context,String date) {
+		super(context, NAME, FACTORY, VERSION);
+		// TODO 自動生成されたコンストラクター・スタブ
+		
+		this.date = date;
+	}
 	
 	public DBHepler(Context context) {
 		super(context, NAME, FACTORY, VERSION);
 		// TODO 自動生成されたコンストラクター・スタブ
+		
 	}
 
+	//データベースが存在しない場合のみ呼ばれる？
 	@Override
 	public void onCreate(SQLiteDatabase db) {
 		// TODO 自動生成されたメソッド・スタブ
-
-		Date date = new Date(System.currentTimeMillis());
-
-		//
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 		
-
-		
-		db.execSQL("create table if not exists date("+
+		db.execSQL("create table "+ date +"("+
 				"_id integer primary key autoincrement,"+
 				" Longitude integer not null,"+
 				" Latitude integer not null"+
 				");"
 		);
 		
+		
+		
 	}
 
 	@Override
-	public void onUpgrade(SQLiteDatabase arg0, int arg1, int arg2) {
+	public void onUpgrade(SQLiteDatabase db, int arg1, int arg2) {
 		// TODO 自動生成されたメソッド・スタブ
+		
+		if(arg1 ==1 && arg2 == 2){
+			db.execSQL("create table if not exists "+ date +"("+
+					"_id integer primary key autoincrement,"+
+					" Longitude integer not null,"+
+					" Latitude integer not null"+
+					");"
+			);
+		}
+			
+		
 
 	}
 	
@@ -68,18 +84,38 @@ public class DBHepler extends SQLiteOpenHelper {
 			val.put("Longitude", g.getLongitudeE6());
 			val.put("Latitude",g.getLatitudeE6());
 			//db.insertOrThrow(sdf1.format(date), null, val);
-			db.insert("date", null, val);
+			db.insert(this.date, null, val);
 		}
+	}
+	
+	public void databaseInsert(SQLiteDatabase db,GeoPoint gp){
 		
+		
+		
+		ContentValues val = new ContentValues();
+		
+		val.put("Longitude",gp.getLongitudeE6());
+		val.put("Latitude",gp.getLatitudeE6());
+	
+		db.insert(this.date, null, val);
+		
+		Log.d("DataBase",this.date+"へ"+gp.toString()+"が書き込まれました");
 		
 	}
 	
 	public void dbClear(SQLiteDatabase db){
 		
-		Date date = new Date(System.currentTimeMillis());
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 		
-		db.execSQL("DELETE FROM "+"date");
+		db.execSQL("DELETE FROM "+date);
+	}
+	
+	public void dbTableCreate(SQLiteDatabase db){
+		db.execSQL("create table if not exists "+ this.date +"("+
+				"_id integer primary key autoincrement,"+
+				" Longitude integer not null,"+
+				" Latitude integer not null"+
+				");"
+		);
 	}
 	
 	

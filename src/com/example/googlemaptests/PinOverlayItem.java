@@ -9,5 +9,6 @@ public class PinOverlayItem extends OverlayItem {
 		super(point,"","");
 		// TODO 自動生成されたコンストラクター・スタブ
 	}
+	
 
 }

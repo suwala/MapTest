@@ -1,37 +1,27 @@
 package com.example.googlemaptests;
 
-
 import android.app.ListActivity;
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
-public class TimeList extends ListActivity{
-
-	/*
-	 * ListActivityを継承
-	 * Activityを継承した場合と記述が変わる
-	 * ListView list を使わずに
-	 * ListActivityを直接オーバーライドする
-	 *
-	 *
-	 */
-	
+public class LogList extends ListActivity{
 	
 	@Override
 	protected void onListItemClick(ListView l, View v, int position, long id) {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onListItemClick(l, v, position, id);
-						
-		Long[] time = LocationMinute.toTime();
-		
+
 		Intent i = new Intent();
 		
-		//数値を返す　返し方はコレデ良いのかなー
-		i.putExtra("time", time[position]);
+		//i.putExtra("time", time[position].getTime());
+		i.putExtra("date", (String)l.getItemAtPosition(position));
+		Log.d("date",(String)l.getItemAtPosition(position));
 		this.setResult(RESULT_OK, i);
 		//finish()でアクティビティを終了させる
 		this.finish();
@@ -42,23 +32,30 @@ public class TimeList extends ListActivity{
 		// TODO 自動生成されたメソッド・スタブ
 		super.onCreate(savedInstanceState);
 
+		DBHepler dbh = new DBHepler(this);
+		SQLiteDatabase db = dbh.getReadableDatabase();
+		boolean isEof;
+		Cursor cursor = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'",null);
+		isEof = cursor.moveToFirst();
+		
 		ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1);
 		/* adapter.add アイテムを追加します
 		 * 
-		 * LocationTimeの配列は作られてるため
-		 * LocationTime[] timeの中身を追記すれば勝手にリストを増やしてくれる、すばら！
+		 * DataBaseからテーブル名を読み取り
+		 * 先頭にDが付く場合のみadapterに追加する
+		 * (ワイルドカードが美味く作動しなかったため)
+		 * 
 		 */
-		Long[] time = LocationMinute.toTime();
-		for(Long i:time){
-			adapter.add(String.valueOf(i/60/1000)+"分");
+		while(isEof){
+			if(cursor.getString(1).indexOf("D") == 0)
+				adapter.add(cursor.getString(1));
+			isEof = cursor.moveToNext();
 		}
+		
+		dbh.close();
 		
 		// アダプターを設定します
 		this.setListAdapter(adapter);
-
-		
-		
 	}
-	
 
 }

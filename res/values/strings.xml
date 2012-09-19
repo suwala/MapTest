@@ -7,5 +7,6 @@
     <string name="menu_timeset">更新間隔の設定</string>
     <string name="menu_path">これまで記録</string>
     <string name="menu_now">現在地の取得</string>
+    <string name="menu_gpout">ログの出力</string>
 
 </resources>

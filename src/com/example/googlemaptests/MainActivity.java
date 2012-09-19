@@ -1,5 +1,8 @@
 package com.example.googlemaptests;
 
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -19,19 +22,25 @@ import com.google.android.maps.OverlayItem;
 import com.google.android.maps.Projection;
 
 import android.R.array;
+import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.provider.ContactsContract.CommonDataKinds.Event;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.app.PendingIntent;
+import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -48,15 +57,20 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Gallery;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.widget.ZoomControls;
 import android.support.v4.app.NavUtils;
 
-public class MainActivity extends MapActivity implements LocationListener {//googleMapを使う際はMapActivityを継承する
+
+
+
+public class MainActivity extends MapActivity implements LocationListener{//googleMapを使う際はMapActivityを継承する
 
 	/*
 	 * Longitudeが経度
@@ -88,26 +102,37 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 	 * ロケーションチェンジ部分が怪しい
 	 * caseの除外？
 	 * ポイントの消去でDB事消去してる件
+	 * インスタンス再生成のたびにLocationChangeが呼び出されてる件
 	 */
 
-
+Overlayが2つある状態になってるので統一させる OverlayPlusに統一中
+//アイコンの追加方法をどうするか
 
 	private MapView map;
 	//private ArrayList<Location> oldLocation = new ArrayList<Location>();
+	private PinItemizedOverlay itemovarlay;
 	private ArrayList<GeoPoint> gp = new ArrayList<GeoPoint>();
-
+	public static int zoom = -1;
+	private LocationManager lastLocation;
+	private ArrayList<OverlayItems> items=new ArrayList<OverlayItems>();
+	private GeoPoint nowGp;
+	
 	@Override
 	protected void onStop() {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onStop();
-
-		DBHepler dbh = new DBHepler(this);
+		zoom = map.getZoomLevel();
+		
+		/*
+		Date date = new Date(System.currentTimeMillis());
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+		DBHepler dbh = new DBHepler(this,sdf1.format(date));
 		SQLiteDatabase db = dbh.getReadableDatabase();
+		dbh.dbClear(db);
+		*/
+		
+		
 
-		dbh.dbClear(db);//dbをクリアする事で二重登録を防ぐ
-		dbh.databaseInsert(db, this.gp);
-
-		dbh.close();
 	}
 
 	@Override
@@ -115,18 +140,21 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
-		
-		Date date = new Date(System.currentTimeMillis());
-		//2012-09-10と帰ってくる
-		Log.d("date.toString",date.toString());
-
-
 		map = (MapView)findViewById(R.id.mapview);
 		MapController c = map.getController();
+		
+		//zoomが-1の時　サービスを起動する
+		if(zoom == -1){
+			this.isService();
+		}
 
+		
 
-
-		c.setZoom(15);//ズーム値の設定
+		if(zoom == -1)
+			c.setZoom(15);//ズーム値の設定
+		else
+			c.setZoom(zoom);
+		
 		//c.setCenter(new GeoPoint(35455281,139629711));//現在地の設定　引数はGeoPoint　この場合は東京になる
 
 		/*非推奨のやり方　.setBuilt～を使おう
@@ -139,6 +167,7 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		Button btn = new Button(this);
 		btn.setText("現在地の取得");
 		btn.setTextSize(10);
+		
 
 		/*無名インナークラスの場合
 		 * 
@@ -174,17 +203,19 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		 * btn.setOnClickListener (new onClickButton(c));で実装
 		 * 
 		 */
+		
 		class onClickButton extends MainActivity implements OnClickListener{
 
-			private ArrayList<GeoPoint> gp;
+			//private ArrayList<GeoPoint> gp;
 			private Context context;
-			private MapView map;
+			private MainActivity activity;
 			
-			public onClickButton(MapController c,MainActivity mainActiovoty,Context context,MapView map){
+			public onClickButton(Context context){
 				
-				this.gp = mainActiovoty.gp;
+				//this.gp = mainActiovoty.gp;
 				this.context = context;
-				this.map = map;
+				this.activity = (MainActivity)context;
+				
 			}
 			
 			@Override
@@ -194,25 +225,35 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 				/*locationManager.getLastKnownLocationを使って現在地を取得
 				locationに入れてgeopointを取り出す
 				取得できない場合はエラー落ちするので対策を練ること
-				*/
+				 */
+
+				lastLocation = (LocationManager)context.getSystemService(Context.LOCATION_SERVICE);
 				
-				if(!this.gp.isEmpty()){
-							
+				lastLocation.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0,0, activity);
+				lastLocation.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0,0, activity);
+				
+				/*
+				
+				if(location!=null){
+					GeoPoint gp = new GeoPoint((int)(location.getLatitude()*1E6), (int)(location.getLongitude()*1E6));
 					MapController mapcon = map.getController();
-					//getResources().getDrawable(R.drawable.icon01);
-					DrawOverlay.drawOverlay(context.getResources().getDrawable(R.drawable.icon06),this.gp.get(0),this.map);
-					mapcon.animateTo(this.gp.get(this.gp.size()-1));
-					Log.d("Button",this.gp.get(this.gp.size()-1).toString());
+									
+					//インスタンスが違う？のでthisだとエラーになる　MainActiviのインスタンスを引き継いでメソッドを呼び出す
+					drawOverlay();
+					
+					mapcon.animateTo(gp);
+					Log.d("Button",String.valueOf(gp));
 				}else{
 					Toast.makeText(MainActivity.this, "現在地を取得できません", Toast.LENGTH_LONG).show();
 				}
+				
+				lastLocation.removeUpdates(activity);
+				*/
 			}
 		}
 
 		
-		btn.setOnClickListener (new onClickButton(c, MainActivity.this,this,this.map));
-
-
+		btn.setOnClickListener (new onClickButton(this));
 
 		btn.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 		btn.setGravity(Gravity.TOP+Gravity.CENTER_HORIZONTAL);
@@ -222,66 +263,50 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		
 		
 		//LocationManagerの設定　GPS更新時間をPreferencesから読み込む　無い場合は15分に
-		this.setRequestLocation(readPreferences());
+		//this.setRequestLocation(readPreferences());
 		
 		Log.d("prefsの中身",String.valueOf(this.readPreferences()));
 		
-		
-
-
 		/*初期位置を東京へ
         GeoPoint tokyo = new GeoPoint(35681396, 139766049);
         c.animateTo(tokyo);
 		 */
-
+		
+/*
 		try{
 			DBHepler dbh = new DBHepler(this);
 			SQLiteDatabase db = dbh.getReadableDatabase();
 			boolean isEof;
 
-			
+			Date date = new Date(System.currentTimeMillis());
 			SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
-			Log.d("sdf1.format(date)",sdf1.format(date));
-			
-			//Cursor cursor = db.query(sdf1.format(date), new String[]{"Longitude","Latitude"},null, null, null, null, null);
-			
-					
-			Cursor cursor = db.query("date", new String[]{"Longitude","Latitude"},null, null, null, null, null);
-			
+
+			//テーブル名一覧を返すクエリ	なかった場合は新たにテーブルを作成
+			Cursor cursor = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'",null);
 			isEof = cursor.moveToFirst();
-			GeoPoint setGp;
-
-			while(isEof){
-				Log.d("GPのサイズ",String.valueOf(this.gp.size()));
-
-				setGp = new GeoPoint(cursor.getInt(1),cursor.getInt(0));
-				this.gp.add(setGp);
+			
+			String str = "";
+			
+			while(isEof){//テーブル名が帰ってくる
+				str += cursor.getString(1)+":";
 				isEof = cursor.moveToNext();
-				Log.d("getGeoPoint",String.valueOf(cursor.getInt(1))+":"+String.valueOf(cursor.getInt(1)));
 			}
 			
-			/*
-			cursor = db.rawQuery("select count(*) from "+sdf1.format(date), null);
-			cursor.moveToLast();
-			Log.d("dbのレコード数",String.valueOf(cursor.getLong(0)));
-			*/
-
+			Log.d("onCre",str);
+			
+			cursor.close();
 			dbh.close();
+			db.close();
+			
+			//DB->GPへ読み込むメソッド
+			this.ReadDataBase(sdf1.format(date));
+			
 		}catch (Exception e) {
 			// TODO: handle exception
 		}
 
-		/*
-		 * locationで緯度経度を取得すれば起動時の現在地を取得可能
-		 * 
-        //pinに画像を読み込む
-        Drawable pin = getResources().getDrawable(R.drawable.maru);
-        //pinを引数にしてPinItemizedOverlayのコンストラクタに渡す
-        PinItemizedOverlay pinOverlay = new PinItemizedOverlay(pin);
-        //map.getOverlays().add()メソッドでpinOverlayを描画？の準備？
-        map.getOverlays().add(pinOverlay);
-
-        //東京と大阪のGeoPointを設定しOverlayに描画
+		
+        /*東京と大阪のGeoPointを設定しOverlayに描画
 
         GeoPoint tokyo = new GeoPoint(35681396, 139766049);
         GeoPoint osaka = new GeoPoint(34701895, 135494975);
@@ -289,20 +314,33 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
         pinOverlay.addPoint(osaka);
 		 */
 		
-		
-		Gallery gallery = new Gallery(this);
-		gallery.setBackgroundColor(Color.BLUE);
-		
-		gallery.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-		gallery.setGravity(Gravity.BOTTOM+Gravity.CENTER_HORIZONTAL);
-		map.addView(gallery);
+		//zoomが-1の時　サービスの起動間隔を3分にする
+		if(this.readPreferences()==0){
+			this.writePreferences(LocationMinute.MINUTE3);
+			this.isService();
+		}
 		
 		
+			
+	}
+
+	
+	
+	
+	@Override
+	protected void onStart() {
+		// TODO 自動生成されたメソッド・スタブ
+		super.onStart();
+		
+		Date date = new Date(System.currentTimeMillis());
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+
+		
+		this.ReadDataBase(sdf1.format(date));
 	}
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		Log.d("GpSize",String.valueOf(this.gp.size()));
 		getMenuInflater().inflate(R.menu.activity_main, menu);
 		return true;
 	}
@@ -317,56 +355,33 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		if(item.getItemId() == R.id.menu_settings){//ポイントの消去
 
 			this.pinClearS();
-			DBHepler dbh = new DBHepler(this);
-			SQLiteDatabase db = dbh.getReadableDatabase();
-			dbh.dbClear(db);
-			dbh.close();
+			
 
 		}else if(item.getItemId() == R.id.menu_settime){//更新時間の設定
 			Intent i = new Intent(this,TimeList.class);
 			this.startActivityForResult(i, 0);
+			
+			
 		}else if(item.getItemId() == R.id.menu_path){//軌跡の表示
 
-			//GP同士を線で結ぶ
-			LineOverlay lineOverlay = new LineOverlay(gp);
-			map.getOverlays().add(lineOverlay);
-			map.invalidate();
-
+			Intent intent = new Intent(this,LogList.class);
+			this.startActivityForResult(intent, 1);
 			
-			//fに移動距離を計算して代入
-			Location location = new Location("now");
-			Location oldLocation = new Location("old");
 			
-			Float f=(float) 0;
+		}else if(item.getItemId() == R.id.menu_gpout){//ログの出力
 			
-			for(int i=0;i<gp.size()-1;i++){
-				location.setLatitude(gp.get(i+1).getLatitudeE6()/1E6);
-				location.setLatitude(gp.get(i+1).getLongitudeE6()/1E6);
-
-				oldLocation.setLatitude(gp.get(i).getLatitudeE6()/1E6);
-				oldLocation.setLatitude(gp.get(i).getLongitudeE6()/1E6);
-
-
-				f+=location.distanceTo(oldLocation);
-
-				Log.d("移動距離(m)",String.valueOf(f));
+			ArrayList<String> list = new ArrayList<String>();
+			
+			for(GeoPoint gp:this.gp){
+				
+				list.add(gp.toString());
+				
 			}
-
-			/*
-			location.setLatitude(gp.get(0).getLatitudeE6()/1E6);
-			location.setLatitude(gp.get(0).getLongitudeE6()/1E6);
-
-			oldLocation.setLatitude(gp.get(1).getLatitudeE6()/1E6);
-			oldLocation.setLatitude(gp.get(1).getLongitudeE6()/1E6);*/
-
-			Toast totas = Toast.makeText(this, String.valueOf(f)+"m", 1000);
-			totas.show();
-
-			//	        for(Location l:this.oldLocation)
-			//	        		f += location.distanceTo(l);
-
-			Dialog dia = this.onCreateDialog(0);
-			dia.show();
+			
+			SdLog sdlog = new SdLog(list);
+			sdlog.outFile();
+			
+			Toast.makeText(this,sdlog.getFileName()+"に保存しました", Toast.LENGTH_LONG).show();
 		}
 		return super.onOptionsItemSelected(item);
 	}
@@ -383,7 +398,9 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		 * resultCodeに結果が入るRESULT_OK成功　RESULT_CANCELEDキャンセルなど
 		 * resultCodeは成否の分岐に使える?
 		 * 
-		 * resultCodeとrequestCodeの使い分けがイマイチ不明
+		 * .startActivityForResult(intent, x);xがrequset_code
+		 * xの値で分岐可能
+		 * 
 		 * 
 		 * dataには呼び出し先のアクティで保持してたインテントがあれば入る
 		 * Intent.put(key,value);で保存
@@ -391,13 +408,71 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		 *  
 		 * */
 		if(resultCode == RESULT_OK){
-			if(requestCode == 0){
+			if(requestCode == 0){//更新時間の設定
 
-				this.setRequestLocation(data.getLongExtra("time", 0));
+				//this.setRequestLocation(data.getLongExtra("time", 0));
 				Log.d("time",String.valueOf(data.getLongExtra("time", 0)));
-				this.writePreferences(data.getLongExtra("time", this.readPreferences()));
-			}
+				if(this.readPreferences() != data.getLongExtra("time", 0)){
+					this.writePreferences(data.getLongExtra("time", this.readPreferences()));
 
+					//新たにサービスをスタートさせる
+					this.isService();
+				}
+				
+			}else if(requestCode == 1){//選択したテーブルの値を受け取り　軌跡を表示
+				
+				String date = data.getStringExtra("date");
+				
+				if(date!=null){
+
+					Log.d("Line","Line");
+					this.gp.clear();
+					this.items.clear();
+					
+					this.ReadDataBase(date);
+					
+						
+					
+					this.pinClearS();
+					
+
+					
+					//fに移動距離を計算して代入
+					Location location = new Location("now");
+					Location oldLocation = new Location("old");
+					GeoPoint gp;
+					
+					Float f=(float) 0;
+										
+					for(int i=0;i<this.items.size()-1;i++){
+						
+						
+						gp = this.items.get(i+1).getGeoPoint();
+						location.setLatitude(gp.getLatitudeE6()/1E6);
+						location.setLatitude(gp.getLongitudeE6()/1E6);
+
+						gp = this.items.get(i).getGeoPoint();
+						oldLocation.setLatitude(gp.getLatitudeE6()/1E6);
+						oldLocation.setLatitude(gp.getLongitudeE6()/1E6);
+
+
+						f+=location.distanceTo(oldLocation);
+
+					}
+
+					Toast totas = Toast.makeText(this, String.valueOf(f)+"m", 1000);
+					totas.show();
+
+					//GP同士を線で結ぶ
+					LineOverlay lineOverlay = new LineOverlay(this.gp);
+					map.getOverlays().add(lineOverlay);
+					map.invalidate();
+
+					//Dialog dia = this.onCreateDialog2(0);
+					//dia.show();
+					Log.d("ItemsSize",String.valueOf(this.items.size()));
+				}
+			}
 		}
 	}
 
@@ -424,9 +499,11 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 	 * 45秒周期？
 	 * 
 	 */
+	/*
 	@Override
 	public void onLocationChanged(Location location) {
 
+		Log.v("Latitude", String.valueOf(location.getLatitude()));
 		/*location の主なメソッド
 		Log.v("----------", "----------");
         Log.v("Latitude", String.valueOf(location.getLatitude()));緯度
@@ -440,47 +517,48 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 
 
 
+		/*
 		// 現在地を取得&保存
-		GeoPoint gp = new GeoPoint((int)(location.getLatitude()*1E6), (int)(location.getLongitude()*1E6));
+		GeoPoint2 gp = new GeoPoint2((int)(location.getLatitude()*1E6), (int)(location.getLongitude()*1E6));
 
 		// コントローラーを使用して、現在地にマップを移動
 		MapController mapCtrl = map.getController();
 		mapCtrl.animateTo(gp);
+		
+		if(this.gp.size() == 0){
+			Log.d("locationChanged","---GPsize:"+String.valueOf(this.gp.size())+":New GeoPpoint "+String.valueOf(gp));
+			Log.d("locationChanged","---GPsize:"+String.valueOf(this.gp.size())+":old GeoPpoint "+String.valueOf(this.gp.get(this.gp.size()-1)));
+		}
+		
+		if(this.gp.size() == 0 || !gp.equalsGP(this.gp.get(this.gp.size()-1))  ){
 
-		/*
-		//pinに画像を読み込む
-		Drawable pin = getResources().getDrawable(R.drawable.icon04);
-		//pinを引数にしてPinItemizedOverlayのコンストラクタに渡す
-		PinItemizedOverlay pinOverlay = new PinItemizedOverlay(pin);
+			this.gp.add(gp);
 
-		/*map.getOverlays().add()メソッドでMapViewのオーバーレイにpinOverlayを描画　
-        pinOverlayはListでGeoPointを保持している　その保持しているポイント全てを描画する
-        pinOverlayはローカルなのだからリストで保持する意味はあるのか?
-		 */     /*   
-		map.getOverlays().add(pinOverlay);
-		//addPoint(gp)メソッドでgpの位置に描画
-		pinOverlay.addPoint(gp);
+
+			Date date = new Date(System.currentTimeMillis());
+			SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+			DBHepler dbh = new DBHepler(this,sdf1.format(date));
+			SQLiteDatabase db = dbh.getReadableDatabase();
+
+
+			Cursor c = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table' and name='"+date+"'", null);
+			boolean isEof = c.moveToFirst();
+			if(!isEof)
+				dbh.dbTableCreate(db);
+
+			dbh.databaseInsert(db, gp);
+			dbh.close();
+			db.close();
+		}else{
+			Log.d("DataBase",gp.toString()+":"+this.gp.get(this.gp.size()-1).toString());
+		}
 		
 
-		/*
-
-		if(this.oldLocation.isEmpty())
-			Log.d("test","空です");
-		if(this.oldLocation.size() == 4){
-			Float f=(float) 0;
-			for(Location l:this.oldLocation)
-				f += location.distanceTo(l);
-		}
-
-		//インスタンス変数にLocationとGeoPointをそれぞれ保存
-		this.oldLocation.add(location);
-		*/
-		this.gp.add(gp);
-
-		Log.d("location","---"+String.valueOf(this.gp.size()));
+		
 
 	}
-
+*/
+	
 	//Locationが実装されているか？GPS機能が無いとLocationが動かない(?)
 	public void updateDisplay(Location location){
 		if(location==null){
@@ -489,7 +567,7 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		}else
 			Log.e("HelloLocation","location is not null");
 	}
-
+/*
 	//勝手に増えてた人達
 	@Override
 	public void onProviderDisabled(String arg0) {
@@ -508,7 +586,7 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		// TODO 自動生成されたメソッド・スタブ
 
 	}
-
+*/
 
 	//Overlayクリアメソッド　map.invalidate();でOverlayの再描画を忘れずに
 	public void pinClearS(){
@@ -517,20 +595,22 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 		map.invalidate();
 	}
 
+	/*
 	public void setRequestLocation(long i){
 		//LocationManagerの取得 位置情報サービス取得
 		LocationManager location = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
 		/*位置情報が変化したときのリスナの登録　requestLocationUpdates(サービスGPS/3G/Wifi,位置情報の更新間隔ms,位置情報の最低更新距離m,登録するリスナ);
 		秒数をセットしただけだと怒涛の勢いで更新されたので　距離も1mに設定
 		*/
-		location.requestLocationUpdates(LocationManager.GPS_PROVIDER, i, 1,this);
+	/*	location.requestLocationUpdates(LocationManager.GPS_PROVIDER, i, 1,this);
 		location.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, i, 1,this);
-
+		
 	}
+	*/
 	
 	public long readPreferences(){
 		SharedPreferences prefs = getSharedPreferences("Maps", MODE_PRIVATE);
-		return prefs.getLong("time", LocationMinute.MINUTE15.getTime());
+		return prefs.getLong("time", LocationMinute.MINUTE3);
 		
 	}
 	
@@ -544,18 +624,30 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 	//指定したGP上のoverlayに画像を書き込むメソッド
 	public void drawOverlay(){
 		
-		//pinに画像を読み込む
-		Drawable pin = getResources().getDrawable(R.drawable.icon01);
-		//pinを引数にしてPinItemizedOverlayのコンストラクタに渡す
-		PinItemizedOverlay pinOverlay = new PinItemizedOverlay(pin);
+		
+		//Drawbleを引数にしてPinItemizedOverlayのコンストラクタに渡す
+		this.itemovarlay = new PinItemizedOverlay(getResources().getDrawable(R.drawable.icon01),this);
 
 		/*map.getOverlays().add()メソッドでMapViewのオーバーレイにpinOverlayを描画　
         pinOverlayはListでGeoPointを保持している　その保持しているポイント全てを描画する
-        pinOverlayはローカルなのだからリストで保持する意味はあるのか?
+        pinOverlayはローカルなのだからリストで保持する意味はあるのか? -> インスタンス変数に変更
 		 */        
-		this.map.getOverlays().add(pinOverlay);
+		
+		
+		this.itemovarlay.addPoint(this.nowGp);
+		map.getOverlays().add(this.itemovarlay);
+		map.getOverlays().clear();
 		//addPoint(gp)メソッドでgpの位置に描画
-		pinOverlay.addPoint(this.gp.get(this.gp.size()-1));
+		
+		 
+		//Overlayを拡張したplusで現在地のGPを渡し描画する
+		OverlayPlus plus = new OverlayPlus(this, getResources().getDrawable(R.drawable.icon01));
+		plus.addGp(nowGp);
+		
+		
+		map.getOverlays().add(plus);
+		
+		Log.d("overlay",String.valueOf(this.itemovarlay.size()));
 	}
 	
 	//ダイアログに画像を表示させる　しかし使わなかった！
@@ -593,19 +685,131 @@ public class MainActivity extends MapActivity implements LocationListener {//goo
 	}
 
 	
+	//setView()を使い独自のレイアウトを使ったダイアログを作成する
+	protected Dialog onCreateDialog2(int id){
+
+		/*
+		ArrayList<String> list = new ArrayList<String>();
+		
+		list.add("A");list.add("A");list.add("A");list.add("A");list.add("A");list.add("A");list.add("A");
+		ArrayAdapter<String> adapter = new ArrayAdapter<String>
+		(getApplicationContext(), android.R.layout.simple_list_item_1,list);
 	
-	protected Dialog onCreateDialog(int id){
-
-		LayoutInflater inflater = LayoutInflater.from(MainActivity.this);
-
-		final View ymView = inflater.inflate(R.layout.iconlist, null);
+		GridView gridView = new GridView(this);
+		gridView.setNumColumns(4);
+		gridView.setAdapter(adapter);
+		*/
 		
-		LinearLayout layout = (LinearLayout)findViewById(R.id.iconLayout);
-		ImageView iv = (ImageView)findViewById(R.drawable.icon01);
+		ArrayList<Drawable> arrayBitmap = new ArrayList<Drawable>();
+		Drawable draw = getResources().getDrawable(R.drawable.icon01);
+		arrayBitmap.add(draw);
 		
-		return new AlertDialog.Builder(this).setTitle("aaa")
+		ArrayAdapter<Drawable> adapter = new ArrayAdapter<Drawable>
+		(getApplicationContext(), android.R.layout.simple_list_item_1,arrayBitmap);
+		GridView gridView = new GridView(this);
+		gridView.setNumColumns(4);
+		gridView.setAdapter(adapter);
+		
+		final View ymView = gridView;
+		return new AlertDialog.Builder(this)
 		.setView(ymView).create();
+	}
+
+	public void ReadDataBase(String date){
+
+		DBHepler dbh = new DBHepler(this,date);
+		SQLiteDatabase db = dbh.getReadableDatabase();
+		Cursor cursor = db.query(date,new String[]{"Longitude","Latitude"},null,null,null,null,null);
+		Boolean isEof = cursor.moveToFirst();
+					
+		GeoPoint setGp;
+
+		this.gp.clear();
+		this.items.clear();
+		while(isEof){
+			
+			setGp = new GeoPoint(cursor.getInt(1),cursor.getInt(0));
+			this.gp.add(setGp);
+			
+			OverlayItems setItems = new OverlayItems();
+			setItems.setGeoPoint(setGp);
+			
+			this.items.add(setItems);
+			
+			isEof = cursor.moveToNext();
+		}
+		
+		Log.d("GPのサイズ",String.valueOf(this.gp.size()));
+		cursor.moveToLast();
+		Log.d("DB_LastGeoPoint",String.valueOf(cursor.getInt(1))+":"+String.valueOf(cursor.getInt(0)));
+		Log.d("GP_LastGeoPoint",this.gp.get(this.gp.size()-1).toString());
+		
+		cursor.close();
+		dbh.close();
+		db.close();
+		
+		Log.d("onCre","全てclose");		
+	}
+	
+	
+	public boolean isService(){
+		ActivityManager am = (ActivityManager)this.getSystemService(Context.ACTIVITY_SERVICE);
+		List<RunningServiceInfo> serviceList = am.getRunningServices(Integer.MAX_VALUE);
+		for(RunningServiceInfo r:serviceList){//.getClassName()でサービス名を取得し.startedで起動状態の確認
+			//Log.d("service",LocationService.class.getCanonicalName());
+			if(LocationService.class.getCanonicalName().equals(r.service.getClassName())){
+				
+				return true;
+				}
+			}
+		
+		//定期的に実行するAlarmManagerの設定
+		Intent intent = new Intent(MainActivity.this,LocationService.class);
+		PendingIntent service = PendingIntent.getService(MainActivity.this, 0, intent, 0);
+		//intent.putExtra("time", this.readPreferences());
+		long first = System.currentTimeMillis();
+		AlarmManager alarmManager = (AlarmManager)getSystemService(ALARM_SERVICE);
+		//一番目の引数でスリープ状態の時の行動をセット　(スリープ解除か継続か)
+		alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, first, this.readPreferences(), service);
+		
+		return false;
+	}
+
+	@Override
+	public void onLocationChanged(Location location) {
+		// TODO 自動生成されたメソッド・スタブ
+		
+		if(location!=null){
+			nowGp = new GeoPoint((int)(location.getLatitude()*1E6),(int)(location.getLongitude()*1E6));
+
+			MapController c = map.getController();
+			c.animateTo(nowGp);
+			this.drawOverlay();
+		}else{
+			Toast.makeText(this, "現在地を取得できません", Toast.LENGTH_LONG).show();
+		}
+		
+		this.lastLocation.removeUpdates(this);
 		
 	}
+
+	@Override
+	public void onProviderDisabled(String arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		
+	}
+
+	@Override
+	public void onProviderEnabled(String arg0) {
+		// TODO 自動生成されたメソッド・スタブ
+		
+	}
+
+	@Override
+	public void onStatusChanged(String arg0, int arg1, Bundle arg2) {
+		// TODO 自動生成されたメソッド・スタブ
+		
+	}
+	
 	
 }

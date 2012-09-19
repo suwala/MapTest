@@ -16,10 +16,13 @@ import com.google.android.maps.Projection;
 
 public class LineOverlay extends Overlay{
 	
-	private ArrayList<GeoPoint> gp = new ArrayList<GeoPoint>();
+	private ArrayList<GeoPoint> gp;
 	
 	public LineOverlay(ArrayList<GeoPoint> gp){
-		this.gp = gp;
+		
+		//新たにListのインスタンスを作る this.gp=gpとやった場合アドレスのコピーとなって動作がおかしくなる
+		this.gp = new ArrayList<GeoPoint>(gp);
+		Log.d("Line",String.valueOf(this.gp.size()));
 	}
 
 	@Override
@@ -50,7 +53,6 @@ public class LineOverlay extends Overlay{
 				
 				Log.d("LineGpSize",String.valueOf(this.gp.size()));
 			}
-			Log.d("test","aaa");
 		}
 	}
 	
