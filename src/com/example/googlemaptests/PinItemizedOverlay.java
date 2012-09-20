@@ -79,13 +79,10 @@ public class PinItemizedOverlay extends ItemizedOverlay<PinOverlayItem> {
 					//hitIndex = i;
 					return i;
 				}
-				
+
 			}
 		}
-		
-		
 		return -1;
-		
 	}
 
 	@Override

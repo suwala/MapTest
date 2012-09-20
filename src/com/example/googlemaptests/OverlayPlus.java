@@ -31,6 +31,12 @@ public class OverlayPlus extends Overlay {
 		this.icon = icon;
 	}
 	
+	public OverlayPlus(Context context,Drawable icon,ArrayList<OverlayItems> myItem){
+		this.context = context;
+		this.icon = icon;
+		this.myItem = myItem;
+	}
+	
 	//OverlayItems‚ðŒ©‚ç‚ê‚é‚æ‚¤‚É‚·‚é
 	public synchronized void setItem(ArrayList<OverlayItems> items){
 		this.myItem = items;
@@ -54,12 +60,13 @@ public class OverlayPlus extends Overlay {
 
 		Point hit = new Point();
 		pj.toPixels(gp, hit);
-		GeoPoint checkGp;
+		
+		Log.d("oveelay",String.valueOf(this.myItem.size()));
 		
 		for(int i=0;i<this.myItem.size();i++){
 			Point point = new Point();
 			pj.toPixels(this.myItem.get(i).getGeoPoint(), point);
-
+			//pj.toPixels(this.now, point);
 			
 			
 			int halfWidth = this.icon.getIntrinsicWidth()*2;
@@ -92,6 +99,7 @@ public class OverlayPlus extends Overlay {
 		if(!shadow){
 			Projection pj = mapView.getProjection();
 			Point point = new Point();
+			//Œ»Ý’n“_‚ð•`‰æ
 			if(now != null){
 				pj.toPixels(this.now, point);
 				Rect bound = new Rect();
@@ -105,6 +113,24 @@ public class OverlayPlus extends Overlay {
 				
 				icon.setBounds(bound);
 				icon.draw(canvas);				
+			}
+			
+			//ƒŠƒXƒg‚É‘Î‚µ‚Ä•`‰æ
+			for(OverlayItems item:this.myItem){
+				
+				pj.toPixels(item.getGeoPoint(), point);
+				Rect bound = new Rect();
+				
+				int halfWidth = this.icon.getIntrinsicWidth()/2;
+				
+				bound.left = point.x - halfWidth;
+				bound.right = point.x + halfWidth;
+				bound.top = point.y - this.icon.getIntrinsicHeight();
+				bound.bottom = point.y;
+				
+				icon.setBounds(bound);
+				icon.draw(canvas);
+				
 			}
 		}
 	}

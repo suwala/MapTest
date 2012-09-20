@@ -105,12 +105,12 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	 * インスタンス再生成のたびにLocationChangeが呼び出されてる件
 	 */
 
-Overlayが2つある状態になってるので統一させる OverlayPlusに統一中
+//-----Overlayが2つある状態になってるので統一させる OverlayPlusに統一中
 //アイコンの追加方法をどうするか
 
 	private MapView map;
 	//private ArrayList<Location> oldLocation = new ArrayList<Location>();
-	private PinItemizedOverlay itemovarlay;
+	//private PinItemizedOverlay itemovarlay;
 	private ArrayList<GeoPoint> gp = new ArrayList<GeoPoint>();
 	public static int zoom = -1;
 	private LocationManager lastLocation;
@@ -626,28 +626,32 @@ Overlayが2つある状態になってるので統一させる OverlayPlusに統一中
 		
 		
 		//Drawbleを引数にしてPinItemizedOverlayのコンストラクタに渡す
-		this.itemovarlay = new PinItemizedOverlay(getResources().getDrawable(R.drawable.icon01),this);
+		//this.itemovarlay = new PinItemizedOverlay(getResources().getDrawable(R.drawable.icon01),this);
 
 		/*map.getOverlays().add()メソッドでMapViewのオーバーレイにpinOverlayを描画　
         pinOverlayはListでGeoPointを保持している　その保持しているポイント全てを描画する
         pinOverlayはローカルなのだからリストで保持する意味はあるのか? -> インスタンス変数に変更
-		 */        
+		   
 		
 		
 		this.itemovarlay.addPoint(this.nowGp);
 		map.getOverlays().add(this.itemovarlay);
-		map.getOverlays().clear();
+		map.getOverlays().clear();*/
+		
 		//addPoint(gp)メソッドでgpの位置に描画
 		
 		 
 		//Overlayを拡張したplusで現在地のGPを渡し描画する
-		OverlayPlus plus = new OverlayPlus(this, getResources().getDrawable(R.drawable.icon01));
+		OverlayPlus plus = new OverlayPlus(this, getResources().getDrawable(R.drawable.icon01),items);
 		plus.addGp(nowGp);
+		
+		plus.setItem(items);
+		
+		
 		
 		
 		map.getOverlays().add(plus);
 		
-		Log.d("overlay",String.valueOf(this.itemovarlay.size()));
 	}
 	
 	//ダイアログに画像を表示させる　しかし使わなかった！
