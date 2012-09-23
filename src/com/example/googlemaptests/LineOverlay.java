@@ -16,12 +16,12 @@ import com.google.android.maps.Projection;
 
 public class LineOverlay extends Overlay{
 	
-	private ArrayList<GeoPoint> gp;
+	private ArrayList<OverlayItems> gp;
 	
-	public LineOverlay(ArrayList<GeoPoint> gp){
+	public LineOverlay(ArrayList<OverlayItems> gp){
 		
 		//新たにListのインスタンスを作る this.gp=gpとやった場合アドレスのコピーとなって動作がおかしくなる
-		this.gp = new ArrayList<GeoPoint>(gp);
+		this.gp = new ArrayList<OverlayItems>(gp);
 		Log.d("Line",String.valueOf(this.gp.size()));
 	}
 
@@ -42,18 +42,19 @@ public class LineOverlay extends Overlay{
 				Point pxStart;
 				Point pxEnd;
 				
-				Log.d("draw","描画開始");
+				
 				for(int i = 0;i < this.gp.size()-1;i++){
-					pxStart = projection.toPixels(gp.get(i), null);
-					pxEnd = projection.toPixels(gp.get(i+1), null);
+					pxStart = projection.toPixels(this.gp.get(i).getGeoPoint(), null);
+					pxEnd = projection.toPixels(this.gp.get(i+1).getGeoPoint(), null);
 					path.moveTo(pxStart.x,pxStart.y);
 					path.lineTo(pxEnd.x,pxEnd.y);
 					canvas.drawPath(path, paint);
 				}
 				
-				Log.d("LineGpSize",String.valueOf(this.gp.size()));
+				
 			}
 		}
+		Log.d("LineGpSize",String.valueOf(this.gp.size()));
 	}
 	
 	

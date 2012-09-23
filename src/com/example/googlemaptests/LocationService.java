@@ -2,6 +2,7 @@ package com.example.googlemaptests;
 
 import java.sql.Date;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 import com.google.android.maps.GeoPoint;
 
@@ -146,27 +147,34 @@ public class LocationService extends Service implements LocationListener{
 		SQLiteDatabase db = dbh.getReadableDatabase();
 		
 
+		//現在の日付のテーブルが無ければ作成
 		Cursor c = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table' and name='"+sdf1.format(date)+"'", null);
 		boolean isEof = c.moveToFirst();
 		if(!isEof)
 			dbh.dbTableCreate(db);
 		
-		c = db.query(sdf1.format(date),new String[]{"Longitude","Latitude"},null,null,null,null,null);
+		
+		c = db.query(sdf1.format(date),new String[]{"Longitude","Latitude","MapDate"},null,null,null,null,null);
 		isEof = c.moveToLast();
 		GeoPoint oldgp=null;
 		if(isEof){
 			oldgp= new GeoPoint(c.getInt(1),c.getInt(0));
 			Log.d("DataBase",gp.toString()+"old:"+oldgp.toString());
+			if(c.getString(2)==null)
+				Log.d("service","ぬるぽ");
+			else
+				Log.d("service",c.getString(2));
 		}
 		if(!gp.equalsGP(oldgp)){//最後に書き込んだGPと比較し違ったら書き込む
 			
-			dbh.databaseInsert(db,gp);
+			SimpleDateFormat sdf = new SimpleDateFormat("HH':'mm");
+			//GPと時刻のみ書き込み　メッセージ・アイコンは任意なのでnullで対処
+			dbh.databaseInsert(db,gp,sdf.format(Calendar.getInstance().getTime()),null,null);
 		}
 
 		dbh.close();
-		db.close();
 		
-		
+		//このクラスではないロケーションサービスの停止 
 		this.location.removeUpdates(this);
 	}
 
@@ -211,5 +219,22 @@ public class LocationService extends Service implements LocationListener{
 		this.keylock.reenableKeyguard();
 		
 		Log.d("Service","ロックしました");
+	}
+	
+	public void saveDatabase(){
+		
+		Date date = new Date(System.currentTimeMillis());
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+		DBHepler dbh = new DBHepler(this,sdf1.format(date));
+		SQLiteDatabase db = dbh.getReadableDatabase();
+		
+		//現在の日付のテーブルが無ければ作成
+		Cursor c = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table' and name='"+sdf1.format(date)+"'", null);
+		boolean isEof = c.moveToFirst();
+		if(!isEof)
+			dbh.dbTableCreate(db);
+		
+		
+		
 	}
 }

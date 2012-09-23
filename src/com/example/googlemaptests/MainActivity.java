@@ -3,13 +3,17 @@ package com.example.googlemaptests;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.sql.Date;
+import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Currency;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.Inflater;
 
 import com.google.android.maps.GeoPoint;
 import com.google.android.maps.ItemizedOverlay;
@@ -57,6 +61,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.ViewGroup.LayoutParams;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Gallery;
@@ -80,7 +85,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	 * 仕様変更があったらしく古い書き方に注意
 	 * 
 	 * 
-	 * 現在初期位置横浜：更新時間15分
+	 * 現在初期位置横浜：更新時間3分
 	 * 
 	 * distance(GeoP,GeoP)で二点の距離が求められるらしい
 	 * 
@@ -98,11 +103,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 
 	/*未実装
 	 * アイコンの変更
-	 * ログの一覧日付ごと？
-	 * ロケーションチェンジ部分が怪しい
-	 * caseの除外？
-	 * ポイントの消去でDB事消去してる件
-	 * インスタンス再生成のたびにLocationChangeが呼び出されてる件
+	 * caseの除外?
 	 */
 
 //-----Overlayが2つある状態になってるので統一させる OverlayPlusに統一中
@@ -111,17 +112,23 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	private MapView map;
 	//private ArrayList<Location> oldLocation = new ArrayList<Location>();
 	//private PinItemizedOverlay itemovarlay;
-	private ArrayList<GeoPoint> gp = new ArrayList<GeoPoint>();
+	//private ArrayList<GeoPoint> gp = new ArrayList<GeoPoint>();
 	public static int zoom = -1;
 	private LocationManager lastLocation;
 	private ArrayList<OverlayItems> items=new ArrayList<OverlayItems>();
 	private GeoPoint nowGp;
+	private Button btn;
+	private static Calendar calendar = Calendar.getInstance();//この時点でその日の日付がセットされる
+	private SimpleDateFormat sdf = new SimpleDateFormat("'D'yyMMdd");
+	private Date oldDate;
+	private Boolean nowFlag=false; 
 	
 	@Override
 	protected void onStop() {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onStop();
 		zoom = map.getZoomLevel();
+		
 		
 		/*
 		Date date = new Date(System.currentTimeMillis());
@@ -139,15 +146,49 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-
+		Log.d("DRAW",calendar.getTime().toString());
 		map = (MapView)findViewById(R.id.mapview);
 		MapController c = map.getController();
+		
+		SimpleDateFormat sdf = new SimpleDateFormat("HHmmss");
 		
 		//zoomが-1の時　サービスを起動する
 		if(zoom == -1){
 			this.isService();
 		}
 
+		Log.d("oncre",(new Date(System.currentTimeMillis()).toString()));
+
+		Date date = new Date(System.currentTimeMillis());
+		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+		
+		DBHepler dbh = new DBHepler(this,sdf1.format(date));
+		SQLiteDatabase db = dbh.getReadableDatabase();
+		boolean isEof;
+		
+		Cursor cursor = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'",null);
+		String str;
+		sdf1=new SimpleDateFormat("yyMMdd");
+		isEof = cursor.moveToFirst();
+		
+		
+		while(isEof){//テーブル名が帰ってくる
+			try{
+			str = cursor.getString(1).replace("D", "");
+			//str = str.replace("D", "");
+			this.oldDate = sdf1.parse(str);
+			Log.d("onCre",this.oldDate.toString());
+			break;
+			}catch (Exception e) {
+				// TODO: handle exception
+				Log.d("onCre","Date型に変換できませんでした");
+			}
+			isEof = cursor.moveToNext();
+		}
+		
+		
+		
+		dbh.close();
 		
 
 		if(zoom == -1)
@@ -164,11 +205,63 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
         map.addView(zc);
 		 */
 
-		Button btn = new Button(this);
-		btn.setText("現在地の取得");
-		btn.setTextSize(10);
+		
+		
+		this.btn=new Button(this);
+		this.btn.setText("現在地の取得");
+		this.btn.setTextSize(10);
 		
 
+		/*
+		final Button btn2 = new Button(this);
+		//日付を切り替えるボタン
+		btn2.setOnClickListener(new View.OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				// TODO 自動生成されたメソッド・スタブ
+				
+				
+			}
+		});
+		*/
+		LinearLayout linear_layout = new LinearLayout(this);
+		View view = getLayoutInflater().inflate(R.layout.buttons, linear_layout);
+		
+		LayoutParams param = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+		//btn2.setLayoutParams(param);
+		//btn2.setGravity(Gravity.RIGHT+Gravity.RIGHT);
+		this.map.addView(view,param);
+		
+		/*
+		this.btn.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+		this.btn.setGravity(Gravity.TOP+Gravity.CENTER_HORIZONTAL);
+		this.map.addView(btn);
+		this.map.setBuiltInZoomControls(true);
+		*/
+		
+		
+		Calendar calendar2 = Calendar.getInstance();
+		
+		//日付のみを比較したいので　HMSを初期化する
+		calendar2.set(Calendar.HOUR_OF_DAY,0);
+		calendar2.set(Calendar.MINUTE,0);
+		calendar2.set(Calendar.SECOND,0);
+		calendar2.set(Calendar.MILLISECOND,0);
+		
+		calendar.set(Calendar.HOUR_OF_DAY,0);
+		calendar.set(Calendar.MINUTE,0);
+		calendar.set(Calendar.SECOND,0);
+		calendar.set(Calendar.MILLISECOND,0);
+		
+		//日付をプラスするボタンで現在の日付を越えないようにする(同日なら押せなくする)
+		if(calendar2.equals(calendar)){
+			Button btn2 = (Button)findViewById(R.id.button2);
+			btn2.setEnabled(false);
+		}
+			
+			
+		
 		/*無名インナークラスの場合
 		 * 
         btn.setOnClickListener(new OnClickListener() {
@@ -227,10 +320,13 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 				取得できない場合はエラー落ちするので対策を練ること
 				 */
 
+				btn.setEnabled(false);
 				lastLocation = (LocationManager)context.getSystemService(Context.LOCATION_SERVICE);
 				
 				lastLocation.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0,0, activity);
 				lastLocation.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0,0, activity);
+				
+				Log.d("DRAW",calendar.getTime().toString());
 				
 				/*
 				
@@ -253,13 +349,19 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		}
 
 		
-		btn.setOnClickListener (new onClickButton(this));
+		
+		this.btn.setOnClickListener (new onClickButton(this));
 
-		btn.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-		btn.setGravity(Gravity.TOP+Gravity.CENTER_HORIZONTAL);
-		map.addView(btn);
-		map.setBuiltInZoomControls(true);
+		param = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+		this.btn.setLayoutParams(param);
+		this.btn.setGravity(Gravity.TOP+Gravity.CENTER_HORIZONTAL);
+		this.map.addView(this.btn);
+		this.map.setBuiltInZoomControls(true);
+		
+		
+		
 
+		
 		
 		
 		//LocationManagerの設定　GPS更新時間をPreferencesから読み込む　無い場合は15分に
@@ -336,7 +438,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 
 		
-		this.ReadDataBase(sdf1.format(date));
+		this.ReadDataBase(sdf1.format(calendar.getTime()));
 	}
 
 	@Override
@@ -347,7 +449,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 
 
 
-	//メニューから選択すると現在地に移動する
+	
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		// TODO 自動生成されたメソッド・スタブ
@@ -372,9 +474,9 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 			
 			ArrayList<String> list = new ArrayList<String>();
 			
-			for(GeoPoint gp:this.gp){
+			for(OverlayItems gp:this.items){
 				
-				list.add(gp.toString());
+				list.add(gp.getGeoPoint().toString());
 				
 			}
 			
@@ -423,55 +525,22 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 				
 				String date = data.getStringExtra("date");
 				
-				if(date!=null){
-
-					Log.d("Line","Line");
-					this.gp.clear();
-					this.items.clear();
-					
-					this.ReadDataBase(date);
-					
-						
-					
-					this.pinClearS();
-					
-
-					
-					//fに移動距離を計算して代入
-					Location location = new Location("now");
-					Location oldLocation = new Location("old");
-					GeoPoint gp;
-					
-					Float f=(float) 0;
-										
-					for(int i=0;i<this.items.size()-1;i++){
-						
-						
-						gp = this.items.get(i+1).getGeoPoint();
-						location.setLatitude(gp.getLatitudeE6()/1E6);
-						location.setLatitude(gp.getLongitudeE6()/1E6);
-
-						gp = this.items.get(i).getGeoPoint();
-						oldLocation.setLatitude(gp.getLatitudeE6()/1E6);
-						oldLocation.setLatitude(gp.getLongitudeE6()/1E6);
-
-
-						f+=location.distanceTo(oldLocation);
-
-					}
-
-					Toast totas = Toast.makeText(this, String.valueOf(f)+"m", 1000);
-					totas.show();
-
-					//GP同士を線で結ぶ
-					LineOverlay lineOverlay = new LineOverlay(this.gp);
-					map.getOverlays().add(lineOverlay);
-					map.invalidate();
-
-					//Dialog dia = this.onCreateDialog2(0);
-					//dia.show();
-					Log.d("ItemsSize",String.valueOf(this.items.size()));
+				SimpleDateFormat smple = new SimpleDateFormat("yyMMdd");
+				try{
+					Log.d("date1",date.toString());
+					Date date1 = smple.parse(date.replace("D", ""));
+				
+					Log.d("date2",date1.toString());
+					calendar.setTime(date1);
+					Log.d("Itme",calendar.getTime().toString());
+				}catch (Exception e) {
+					// TODO: handle exception
+					Log.d("date","era-desu!");
 				}
+				
+				this.buttonOnOff();
+				this.mapToLine(date);
+				
 			}
 		}
 	}
@@ -591,8 +660,9 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	//Overlayクリアメソッド　map.invalidate();でOverlayの再描画を忘れずに
 	public void pinClearS(){
 
-		map.getOverlays().clear();
-		map.invalidate();
+		Log.d("clear","けします");
+		this.map.getOverlays().clear();
+		this.map.invalidate();
 	}
 
 	/*
@@ -640,17 +710,15 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		
 		//addPoint(gp)メソッドでgpの位置に描画
 		
-		 
+		
+		 Log.d("Draw",calendar.getTime().toString());
 		//Overlayを拡張したplusで現在地のGPを渡し描画する
-		OverlayPlus plus = new OverlayPlus(this, getResources().getDrawable(R.drawable.icon01),items);
+		Drawable draw = getResources().getDrawable(R.drawable.icon01);
+		Drawable draw2 = getResources().getDrawable(R.drawable.icon02);
+		OverlayPlus plus = new OverlayPlus(this, draw,draw2,this.items,this.nowFlag,calendar.getTime());
 		plus.addGp(nowGp);
-		
-		plus.setItem(items);
-		
-		
-		
-		
 		map.getOverlays().add(plus);
+	
 		
 	}
 	
@@ -720,39 +788,48 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	}
 
 	public void ReadDataBase(String date){
-
+		
 		DBHepler dbh = new DBHepler(this,date);
 		SQLiteDatabase db = dbh.getReadableDatabase();
-		Cursor cursor = db.query(date,new String[]{"Longitude","Latitude"},null,null,null,null,null);
+		//dbh.test(db);
+		
+		Cursor cursor = db.query(date,new String[]{"Longitude","Latitude","MapDate","Message","Icon"},null,null,null,null,null);
 		Boolean isEof = cursor.moveToFirst();
-					
+		
+		
 		GeoPoint setGp;
 
-		this.gp.clear();
 		this.items.clear();
+		
+		Integer i=0;
+		
 		while(isEof){
 			
 			setGp = new GeoPoint(cursor.getInt(1),cursor.getInt(0));
-			this.gp.add(setGp);
 			
 			OverlayItems setItems = new OverlayItems();
 			setItems.setGeoPoint(setGp);
+			setItems.setDate(cursor.getString(2));
+			setItems.setMessage(cursor.getString(3));
+			setItems.setIconNum(cursor.getInt(4));
+			
+			if(cursor.getString(3) != null)
+			Log.d("datavase",cursor.getString(3)+":"+i.toString());
 			
 			this.items.add(setItems);
 			
 			isEof = cursor.moveToNext();
+			i++;
 		}
 		
-		Log.d("GPのサイズ",String.valueOf(this.gp.size()));
 		cursor.moveToLast();
-		Log.d("DB_LastGeoPoint",String.valueOf(cursor.getInt(1))+":"+String.valueOf(cursor.getInt(0)));
-		Log.d("GP_LastGeoPoint",this.gp.get(this.gp.size()-1).toString());
 		
-		cursor.close();
+		
 		dbh.close();
-		db.close();
+
 		
-		Log.d("onCre","全てclose");		
+		Log.d("read",String.valueOf(this.items.size()));
+		Log.d("database","全てclose");		
 	}
 	
 	
@@ -783,12 +860,17 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	public void onLocationChanged(Location location) {
 		// TODO 自動生成されたメソッド・スタブ
 		
+		this.btn.setEnabled(true);
+		
 		if(location!=null){
 			nowGp = new GeoPoint((int)(location.getLatitude()*1E6),(int)(location.getLongitude()*1E6));
-
+			calendar = Calendar.getInstance();
+			this.buttonOnOff();
+			this.map.getOverlays().clear();
 			MapController c = map.getController();
-			c.animateTo(nowGp);
+			this.nowFlag = true;
 			this.drawOverlay();
+			c.animateTo(nowGp);
 		}else{
 			Toast.makeText(this, "現在地を取得できません", Toast.LENGTH_LONG).show();
 		}
@@ -814,6 +896,112 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		// TODO 自動生成されたメソッド・スタブ
 		
 	}
+		
+
+	public void dataIs(View v){
+		
+		if(v.getId() == R.id.button1){//日付をマイナスする
+			calendar.add(Calendar.DATE, -1);
+		}else{
+			calendar.add(Calendar.DATE, 1);
+		}
+		SimpleDateFormat simple = new SimpleDateFormat("yyyy/MM/dd");
+		Toast.makeText(this, simple.format(calendar.getTime()), Toast.LENGTH_SHORT).show();
+		
+		if(this.buttonOnOff()){
+			this.pinClearS();
+			this.ReadDataBase(this.sdf.format(calendar.getTime()));
+
+			this.drawOverlay();
+		}
+	}
 	
+	public Boolean buttonOnOff(){
+
+		this.nowFlag = false;
+		Calendar calendar2 = Calendar.getInstance();
+		
+		//日付のみを比較したいので　HMSを初期化する
+		calendar2.set(Calendar.HOUR_OF_DAY,0);
+		calendar2.set(Calendar.MINUTE,0);
+		calendar2.set(Calendar.SECOND,0);
+		calendar2.set(Calendar.MILLISECOND,0);
+		
+
+		//参照している日付がリアルの日付を超えないようにする
+		if(calendar2.equals(calendar)||calendar2.before(calendar)){
+			Button btn = (Button)findViewById(R.id.button2);
+			btn.setEnabled(false);
+		}else{
+			Button btn = (Button)findViewById(R.id.button2);
+			btn.setEnabled(true);
+		}		
+		
+		if(oldDate.equals(calendar.getTime()) || this.oldDate.after(calendar.getTime())){
+			Button btn = (Button)findViewById(R.id.button1);
+			btn.setEnabled(false);
+		}else{
+			Button btn = (Button)findViewById(R.id.button1);
+			btn.setEnabled(true);
+		}
+		//LineからIconへ
+		//this.mapToLine(this.sdf.format(calendar.getTime()));
+		
+		return true;
+	}
 	
+	public void mapToLine(String date){
+		try{
+			if(date!=null){
+
+				Log.d("Line",date);
+
+				this.ReadDataBase(date);
+
+				this.pinClearS();
+
+
+
+				//fに移動距離を計算して代入
+				Location location = new Location("now");
+				Location oldLocation = new Location("old");
+				GeoPoint gp;
+
+				Float f=(float) 0;
+
+				for(int i=0;i<this.items.size()-1;i++){
+
+
+					gp = this.items.get(i+1).getGeoPoint();
+					location.setLatitude(gp.getLatitudeE6()/1E6);
+					location.setLatitude(gp.getLongitudeE6()/1E6);
+
+					gp = this.items.get(i).getGeoPoint();
+					oldLocation.setLatitude(gp.getLatitudeE6()/1E6);
+					oldLocation.setLatitude(gp.getLongitudeE6()/1E6);
+
+
+					f+=location.distanceTo(oldLocation);
+
+				}
+
+				Toast totas = Toast.makeText(this, String.valueOf(f)+"m", 1000);
+				totas.show();
+
+				//GP同士を線で結ぶ
+				LineOverlay lineOverlay = new LineOverlay(this.items);
+				map.getOverlays().add(lineOverlay);
+				map.invalidate();
+
+				//Dialog dia = this.onCreateDialog2(0);
+				//dia.show();
+				Log.d("ItemsSize",String.valueOf(this.items.size()));
+			}
+
+		}
+		catch (Exception e) {
+			// TODO: handle exception
+		}
+	}
+
 }

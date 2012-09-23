@@ -1,6 +1,7 @@
 package com.example.googlemaptests;
 
 import java.util.ArrayList;
+import java.util.Date;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -18,19 +19,27 @@ public class OverlayItems  {
 	private GeoPoint gp;
 	private String message;
 	private Integer iconNum;
+	private String date;
 	
 
+	public void setDate(String _date){
+		this.date = _date;
+	}
 	
-	public void setGeoPoint(GeoPoint gp){
-		this.gp = gp;
+	public String getDate(){
+		return this.date;
+	}
+	
+	public void setGeoPoint(GeoPoint _gp){
+		this.gp = _gp;
 	}
 	
 	public GeoPoint getGeoPoint(){
 		return this.gp;
 	}
 	
-	public void setIconNum(int iconNum){
-		this.iconNum = iconNum;
+	public void setIconNum(int _iconNum){
+		this.iconNum = _iconNum;
 	}
 	
 	public int getIconNum(){
