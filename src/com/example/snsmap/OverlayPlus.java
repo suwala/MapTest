@@ -38,7 +38,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 	private Context context;
 	private ArrayList<OverlayItems> myItem;
 	private Drawable icon;
-	private Drawable icon2;
+	private int iconResoce;
 	private GeoPoint now;
 	private Date date;
 	private Boolean nowFlag;
@@ -50,10 +50,10 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 	//db.updateで上書きできるらしいぞ
 	
 	//コレが実行されてる
-	public OverlayPlus(Context context,Drawable icon,Drawable icon2,ArrayList<OverlayItems> myItem,Boolean _flag,Date _date){
+	public OverlayPlus(Context context,Drawable icon,int icon2,ArrayList<OverlayItems> myItem,Boolean _flag,Date _date){
 		this.context = context;
 		this.icon = icon;
-		this.icon2 = icon2;
+		this.iconResoce = icon2;
 		this.myItem = myItem;
 		this.nowFlag = _flag;
 		this.date = _date;
@@ -69,6 +69,8 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 		this.myItem = items;
 	}
 	
+	
+	//引数gpはタッチしたポイントのGeoPointになる
 	@Override
 	public boolean onTap(final GeoPoint gp, MapView map) {
 		// TODO 自動生成されたメソッド・スタブ
@@ -90,18 +92,24 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				.setTitle("メッセージを入力してね")
 				.setView(input)
 				.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-
+					//新規ポイントにメッセージが入力された場合
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
 						// TODO 自動生成されたメソッド・スタブ
 						
-						if(!input.getText().toString().equals("")){//新規ポイントにメッセージが入力された場合
+						if(!input.getText().toString().equals("")){
 							Log.d("inputtext","size="+String.valueOf(input.getTextSize()));
-							Log.d("inputtext","size="+String.valueOf(input.getText()));
+							Log.d("inputtext","text="+String.valueOf(input.getText().toString()));
 							
+							Log.d("inser",String.valueOf(myItem.size()));
+							OverlayItems item = new OverlayItems();
 							
+							SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
+							item.setItem(sdf1.format(date), input.getText().toString(), gp, iconResoce);
+							myItem.add(item);
+							Log.d("inser",String.valueOf(myItem.size()));
 							DataBaseLogic dbl = new InsertDB();
-							dbl.setData(hitIndex, input.getText().toString(), gp, context, date, myItem);
+							dbl.setData(hitIndex, input.getText().toString(), now, context, date,iconResoce);
 							
 							((MainActivity)context).pinClearS();
 							((MainActivity)context).drawOverlay();
@@ -130,7 +138,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				.setTitle("メッセージを入力してね")
 				.setView(input)
 				.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-
+					//既存ポイントへの更新
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
 						// TODO 自動生成されたメソッド・スタブ
@@ -140,9 +148,10 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 							Log.d("inputtext","size="+String.valueOf(input.getText()));
 							
 							
+							
 							Toast.makeText(context, myItem.get(hitIndex).getDate(), Toast.LENGTH_SHORT).show();
 							DataBaseLogic dbl = new UpdateDB();
-							dbl.setData(hitIndex, input.getText().toString(), gp, context, date, myItem);
+							dbl.setData(hitIndex, input.getText().toString(),context, date, myItem,iconResoce);
 							((MainActivity)context).pinClearS();
 							((MainActivity)context).drawOverlay();
 													
@@ -162,7 +171,6 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 			}else{//既存Pにヒットしメッセージが入力済みの場合
 				
 				Toast.makeText(context, this.myItem.get(hitIndex).getDate()+"  "+this.myItem.get(hitIndex).getMessage(), Toast.LENGTH_SHORT).show();
-				
 				
 			}
 			
@@ -247,7 +255,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				bound.bottom = point.y;
 				
 				this.icon.setBounds(bound);
-				this.icon.draw(canvas);				
+				this.icon.draw(canvas);		
 			}else{
 			
 			//GP全てに描画する場合
@@ -255,20 +263,54 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				for(OverlayItems i:this.myItem){
 					pj.toPixels(i.getGeoPoint(), point);
 					Rect bound = new Rect();
-					Drawable icon = this.icon;
 
-					if(i.getIconNum() == R.drawable.icon02)
-						icon = this.icon2;
+					Drawable icon,icon2;
 
+				
+					if(null != i.getMessage())
+						Log.d("plus",i.getMessage());
+					
+					
+					if(i.getIconNum() == 0){
+						icon = this.context.getResources().getDrawable(R.drawable.icon01);
+						
+						int halfWidth = icon.getIntrinsicWidth()/2;
+
+						bound.left = point.x - halfWidth;
+						bound.right = point.x + halfWidth;
+						bound.top = point.y - icon.getIntrinsicHeight();
+						bound.bottom = point.y;
+						
+						icon.setBounds(bound);
+						icon.draw(canvas);
+						
+						
+					}else{
+						icon2 = this.context.getResources().getDrawable(i.getIconNum());
+						Log.d("plus",String.valueOf(i.getIconNum()));
+						Log.d("plus+",String.valueOf(R.drawable.icon01));
+						
+						int halfWidth = icon2.getIntrinsicWidth()/2;
+
+						bound.left = point.x - halfWidth;
+						bound.right = point.x + halfWidth;
+						bound.top = point.y - icon2.getIntrinsicHeight();
+						bound.bottom = point.y;
+						
+						icon2.setBounds(bound);
+						icon2.draw(canvas);
+					}
+					/*
 					int halfWidth = icon.getIntrinsicWidth()/2;
 
 					bound.left = point.x - halfWidth;
 					bound.right = point.x + halfWidth;
 					bound.top = point.y - icon.getIntrinsicHeight();
 					bound.bottom = point.y;
-
+					
 					icon.setBounds(bound);
 					icon.draw(canvas);	
+					*/
 				}
 			}
 		}
@@ -306,7 +348,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 	}
 
 
-
+	//Overlayが存在し長押しされた場合
 	@Override
 	public void onLongPress(MotionEvent arg0) {
 		// TODO 自動生成されたメソッド・スタブ

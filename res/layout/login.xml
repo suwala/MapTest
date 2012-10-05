@@ -72,6 +72,4 @@
          android:text="@string/loginButton" 
          android:onClick="onClick"/>
 
-/
-
 </LinearLayout>

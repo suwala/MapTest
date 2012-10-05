@@ -14,5 +14,8 @@ public interface DataBaseLogic {
 	
 	public SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");	
 	
-	public abstract void setData(int _hitIndex,String input,GeoPoint gp,Context context,Date date,ArrayList<OverlayItems> myItem);
+	//Update
+	public abstract void setData(int _hitIndex,String input,Context context,Date date,ArrayList<OverlayItems> myItem,int icon);
+	//Insert
+	public abstract void setData(int _hitIndex,String input,GeoPoint gp,Context context,Date date,int icon);
 }

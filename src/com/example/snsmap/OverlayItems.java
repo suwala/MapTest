@@ -53,4 +53,13 @@ public class OverlayItems  {
 	public String getMessage(){
 		return this.message;
 	}
+	
+	public void setItem(String _date,String _message,GeoPoint _gp,int _iconNum){
+		
+		this.date = _date;
+		this.message = _message;
+		this.gp = _gp;
+		this.iconNum = _iconNum; 
+		
+	}
 }

@@ -12,18 +12,36 @@ import android.database.sqlite.SQLiteDatabase;
 public abstract class DataAbs implements DataBaseLogic{
 
 
+	DBHepler dbh;
+	SQLiteDatabase db;
+	ContentValues val;
+	
+	//DBUpDate
 	@Override
-	public void setData(int _hitIndex,String input,GeoPoint gp,Context context,Date date,ArrayList<OverlayItems> myItem){
+	public void setData(int _hitIndex,String input,Context context,Date date,ArrayList<OverlayItems> myItem,int icon){
 		
-		DBHepler dbh = new DBHepler(context,sdf1.format(date));
-		SQLiteDatabase db = dbh.getReadableDatabase();
+		this.settingDB(context, date);
+		//‚±‚±‚Å•ªŠò
+		this.toData(this.val,input,date,this.db,myItem,_hitIndex,icon);
+		this.dbh.close();
+	}
+	
+	//DBInsert
+	@Override
+	public void setData(int _hitIndex,String input,GeoPoint gp,Context context,Date date,int icon){
 		
-		ContentValues val = new ContentValues();
-		this.toData(val,gp,input,date,db,myItem,_hitIndex);
-		dbh.close();
+		this.settingDB(context, date);
+		this.toData(this.val,gp,input,date,this.db,_hitIndex,icon);
+		this.dbh.close();
+	}
+	
+	private void settingDB(Context context,Date date){
+		this.dbh = new DBHepler(context,sdf1.format(date));
+		this.db = dbh.getReadableDatabase();
+		this.val = new ContentValues();
 		
 	}
 	
-	public abstract void toData(ContentValues val,GeoPoint now,String input,Date date,SQLiteDatabase db,ArrayList<OverlayItems> myItem,int hitIndex);
-	
+	public abstract void toData(ContentValues val,String input,Date date,SQLiteDatabase db,ArrayList<OverlayItems> myItem,int hitIndex,int icon);
+	public abstract void toData(ContentValues val,GeoPoint now,String input,Date date,SQLiteDatabase db,int hitIndex,int icon);
 }

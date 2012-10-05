@@ -11,33 +11,33 @@ import com.google.android.maps.GeoPoint;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 public class InsertDB extends DataAbs{
 
 	
 	@Override
-	public void toData(ContentValues val,GeoPoint now,String input,Date date,SQLiteDatabase db,ArrayList<OverlayItems> myItem,int hitIndex) {
+	public void toData(ContentValues val,String input,Date date,SQLiteDatabase db,ArrayList<OverlayItems> myItem,int hitIndex,int icon) {
 		// TODO 自動生成されたメソッド・スタブ
-		
+		;
+	}
+
+	@Override
+	public void toData(ContentValues val, GeoPoint now, String input,
+			Date date, SQLiteDatabase db, int hitIndex, int icon) {
+		// TODO 自動生成されたメソッド・スタブ
 		
 		//DBへ新規ポイントの書き込み
 		val.put("Longitude",now.getLongitudeE6());
 		val.put("Latitude",now.getLatitudeE6());
 		val.put("MapDate", new SimpleDateFormat("HH':'mm").format(Calendar.getInstance().getTime()));
 		val.put("Message", input);
-		val.put("Icon", R.drawable.icon02);
+		val.put("Icon", icon);
 		
 		db.insert(sdf1.format(date), null,val);
-		
-		//リストへ新規アイテムのADD
-		OverlayItems item =new OverlayItems();
-		item.setGeoPoint(new GeoPoint(now.getLongitudeE6(), now.getLatitudeE6()));
-		item.setDate(new SimpleDateFormat("HH':'mm").format(Calendar.getInstance().getTime()));
-		item.setMessage(input);
-		item.setIconNum(R.drawable.icon02);
-		myItem.add(item);
-		
+		Log.d("inser","かきこんだ");
 	}
+
 
 	
 }

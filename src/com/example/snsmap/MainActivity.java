@@ -72,11 +72,12 @@ import android.widget.Gallery;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ZoomControls;
 import android.support.v4.app.NavUtils;
 
-//アイコン一覧は完成　次のステップへ
+//DB関連のバグ取り終了？　鯖への転送の仕様固まらず
 
 
 public class MainActivity extends MapActivity implements LocationListener{//googleMapを使う際はMapActivityを継承する
@@ -129,6 +130,9 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	private Date oldDate;
 	private Boolean nowFlag=false; 
 	private int icon = R.drawable.icon01;//使用するアイコン
+	private String user;
+	
+	private final int USER_PREFS = 0;
 	
 	@Override
 	protected void onStop() {
@@ -154,6 +158,10 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		Log.d("DRAW",calendar.getTime().toString());
+		
+		this.readPreferences(this.USER_PREFS);
+		((TextView)findViewById(R.id.userName)).setText(this.user);
+		
 		map = (MapView)findViewById(R.id.mapview);
 		MapController c = map.getController();
 		
@@ -430,6 +438,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		}
 		
 		
+		
 			
 	}
 
@@ -585,7 +594,13 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	public long readPreferences(){
 		SharedPreferences prefs = getSharedPreferences("Maps", MODE_PRIVATE);
 		return prefs.getLong("time", LocationMinute.MINUTE3);
-		
+	}
+	
+	public void readPreferences(int i){
+		if(i == this.USER_PREFS){
+			SharedPreferences prefs = getSharedPreferences("snsmap", MODE_PRIVATE);
+			this.user = prefs.getString("user", null);
+		}
 	}
 	
 	public void writePreferences(long l){
@@ -618,7 +633,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		//Overlayを拡張したplusで現在地のGPを渡し描画する
 		Drawable draw = getResources().getDrawable(this.icon);
 		Drawable draw2 = getResources().getDrawable(R.drawable.icon02);
-		OverlayPlus plus = new OverlayPlus(this, draw,draw2,this.items,this.nowFlag,calendar.getTime());
+		OverlayPlus plus = new OverlayPlus(this, draw,this.icon,this.items,this.nowFlag,calendar.getTime());
 		plus.addGp(nowGp);
 		map.getOverlays().add(plus);
 	
@@ -730,7 +745,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 			setItems.setIconNum(cursor.getInt(4));
 			
 			if(cursor.getString(3) != null)
-			Log.d("datavase",cursor.getString(3)+":"+i.toString());
+				Log.d("datavase",cursor.getString(3)+":"+i.toString());
 			
 			this.items.add(setItems);
 			
