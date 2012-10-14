@@ -1,8 +1,10 @@
 package com.example.snsmap;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -14,6 +16,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.Inflater;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.HttpParams;
+import org.apache.http.protocol.HTTP;
+import org.xmlpull.v1.XmlPullParser;
 
 import com.example.snsmap.R;
 import com.google.android.maps.GeoPoint;
@@ -53,8 +67,11 @@ import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 import android.text.Html;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.text.Html.ImageGetter;
 import android.util.Log;
+import android.util.Xml;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -68,6 +85,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Gallery;
 import android.widget.GridView;
 import android.widget.ImageView;
@@ -105,6 +123,9 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	 * #getView内でのIconListData[] list = IconListData.values();
 	 * list[posion]なんかはよく使う形っぽいので覚えておこう
 	 * 
+	 * Seviceもインスタンス化可能なので
+	 * 明示的にメソッドを呼び出せたりもする　MainAcからLocition関係消せる？
+	 * CallBackを実装するとService←→Actiでの通信が出来る
 	 */
 
 
@@ -123,34 +144,26 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	public static int zoom = -1;
 	private LocationManager lastLocation;
 	private ArrayList<OverlayItems> items=new ArrayList<OverlayItems>();
-	private GeoPoint nowGp;
+	private GeoPoint nowGp;//現在地ボタンを押した時に格納されるGP
 	private Button btn;
 	private static Calendar calendar = Calendar.getInstance();//この時点でその日の日付がセットされる
 	private SimpleDateFormat sdf = new SimpleDateFormat("'D'yyMMdd");
 	private Date oldDate;
-	private Boolean nowFlag=false; 
-	private int icon = R.drawable.icon01;//使用するアイコン
-	private String user;
+	private Boolean nowFlag=false; //現在地を求める時のフラグ
+	//private int icon = R.drawable.icon01;//使用するアイコン
+	private int iconNum = 1;
+	private String user,userName;
 	
-	private final int USER_PREFS = 0;
+	private final int USER_PREFS = 0,USER_NAME=1;
+	private ArrayList<OverlayItems> friend = new ArrayList<OverlayItems>();
+	
 	
 	@Override
 	protected void onStop() {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onStop();
 		zoom = map.getZoomLevel();
-		
-		
-		/*
-		Date date = new Date(System.currentTimeMillis());
-		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
-		DBHepler dbh = new DBHepler(this,sdf1.format(date));
-		SQLiteDatabase db = dbh.getReadableDatabase();
-		dbh.dbClear(db);
-		*/
-		
-		
-
+		this.writePreferences();
 	}
 
 	@Override
@@ -159,19 +172,19 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		setContentView(R.layout.activity_main);
 		Log.d("DRAW",calendar.getTime().toString());
 		
+		//Prefsに保存したUserの名前を読み込み表示
 		this.readPreferences(this.USER_PREFS);
-		((TextView)findViewById(R.id.userName)).setText(this.user);
+		((TextView)findViewById(R.id.userName)).setText("ID:"+this.user);
 		
 		map = (MapView)findViewById(R.id.mapview);
 		MapController c = map.getController();
 		
 		SimpleDateFormat sdf = new SimpleDateFormat("HHmmss");
 		
-		//zoomが-1の時　サービスを起動する
-		if(zoom == -1){
-			this.isService();
-		}
+		//作動中のサービスをチェックし　動いてなければ起動する
+		this.isService();
 
+		
 		Log.d("oncre",(new Date(System.currentTimeMillis()).toString()));
 
 		Date date = new Date(System.currentTimeMillis());
@@ -189,11 +202,10 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		
 		while(isEof){//テーブル名が帰ってくる
 			try{
-			str = cursor.getString(1).replace("D", "");
-			//str = str.replace("D", "");
-			this.oldDate = sdf1.parse(str);
-			Log.d("onCre",this.oldDate.toString());
-			break;
+				str = cursor.getString(1).replace("D", "");
+				//str = str.replace("D", "");
+				this.oldDate = sdf1.parse(str);
+				Log.d("onCre",str);
 			}catch (Exception e) {
 				// TODO: handle exception
 				Log.d("onCre","Date型に変換できませんでした");
@@ -437,7 +449,8 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 			this.isService();
 		}
 		
-		
+		this.friendGetName();
+		this.setUserName();
 		
 			
 	}
@@ -449,8 +462,7 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	protected void onStart() {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onStart();
-		
-		Date date = new Date(System.currentTimeMillis());
+
 		SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
 
 		
@@ -470,22 +482,48 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 	public boolean onOptionsItemSelected(MenuItem item) {
 		// TODO 自動生成されたメソッド・スタブ
 
-		if(item.getItemId() == R.id.menu_settings){//ポイントの消去
+		if(item.getItemId() == R.id.menu_settings){//フレンド登録
 
-			this.pinClearS();
-			this.onCreateDialog2();
-			//new GridIconList(this);
+			final EditText input = new EditText(this);
+			InputFilter[] filters = {new MyFilter(8)};
+			input.setFilters(filters);//MyFilterで8文字まで英数字のみ入力できるようにする
 			
 			
-
+			new AlertDialog.Builder(this).setTitle("登録したいIDを入力してください")
+				.setView(input).setPositiveButton("OK", new DialogInterface.OnClickListener() {
+					
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						// TODO 自動生成されたメソッド・スタブ
+						if(input.getText().toString().length() <6){
+							Toast.makeText(MainActivity.this, "IDは6文字以上です", Toast.LENGTH_SHORT).show();
+							
+						}else{
+							setFriend(input.getText().toString());
+						}
+						
+						
+					}
+				}).show();
+			
 		}else if(item.getItemId() == R.id.menu_settime){//更新時間の設定
 			Intent i = new Intent(this,TimeList.class);
 			this.startActivityForResult(i, 0);
 			
 			
-		}else if(item.getItemId() == R.id.menu_path){//軌跡の表示
+		}else if(item.getItemId() == R.id.menu_friend){//フレンド一覧の表示
 
+			Log.d("hriend",String.valueOf(this.friend.size()));
 			Intent intent = new Intent(this,LogList.class);
+			
+			String[] str = new String[this.friend.size()];
+			int i=0;
+			for(OverlayItems items:this.friend){
+				str[i] = items.getFriendName();
+				i++;
+			}
+						
+			intent.putExtra("friend",str);//ArrayListを渡す
 			this.startActivityForResult(intent, 1);
 			
 			
@@ -540,25 +578,14 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 					this.isService();
 				}
 				
-			}else if(requestCode == 1){//選択したテーブルの値を受け取り　軌跡を表示
+			}else if(requestCode == 1){//選択したテーブルの値を受け取り　フレンドの位置へ飛ぶ
 				
-				String date = data.getStringExtra("date");
+				int friendNum = data.getIntExtra("friendList", 0);
+				MapController c = map.getController();
+				c.animateTo(this.friend.get(friendNum).getGeoPoint());
 				
-				SimpleDateFormat smple = new SimpleDateFormat("yyMMdd");
-				try{
-					Log.d("date1",date.toString());
-					Date date1 = smple.parse(date.replace("D", ""));
-				
-					Log.d("date2",date1.toString());
-					calendar.setTime(date1);
-					Log.d("Itme",calendar.getTime().toString());
-				}catch (Exception e) {
-					// TODO: handle exception
-					Log.d("date","era-desu!");
-				}
 				
 				this.buttonOnOff();
-				this.mapToLine(date);
 				
 			}
 		}
@@ -600,6 +627,16 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		if(i == this.USER_PREFS){
 			SharedPreferences prefs = getSharedPreferences("snsmap", MODE_PRIVATE);
 			this.user = prefs.getString("user", null);
+			this.iconNum = prefs.getInt("iconNum", 1);
+		}
+		
+		if(i == this.USER_NAME){
+			SharedPreferences prefs = getSharedPreferences("snsmap", MODE_PRIVATE);
+			
+			//Login画面でのprefsを取得しユーザー名をゲット
+			this.userName = prefs.getString(prefs.getString("user", null), "");
+			((TextView)findViewById(R.id.textView2)).setText(" NAME:"+this.userName);
+			
 		}
 	}
 	
@@ -608,6 +645,23 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		SharedPreferences.Editor editor = prefs.edit();
 		editor.putLong("time", l);
 		editor.commit();
+	}
+	
+	public void writePreferences(){
+		SharedPreferences prefs = getSharedPreferences("snsmap", MODE_PRIVATE);
+		SharedPreferences.Editor editor = prefs.edit();
+		editor.putInt("iconNum", this.iconNum);
+		editor.commit();
+	}
+	
+	public void writePreferences(int i){
+		if(i == this.USER_NAME){
+			SharedPreferences prefs = getSharedPreferences("snsmap", MODE_PRIVATE);
+			SharedPreferences.Editor editor = prefs.edit();
+			
+			editor.putString(prefs.getString("user", null), this.userName);
+			editor.commit();
+		}
 	}
 	
 	//指定したGP上のoverlayに画像を書き込むメソッド
@@ -631,40 +685,10 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		
 		
 		//Overlayを拡張したplusで現在地のGPを渡し描画する
-		Drawable draw = getResources().getDrawable(this.icon);
-		Drawable draw2 = getResources().getDrawable(R.drawable.icon02);
-		OverlayPlus plus = new OverlayPlus(this, draw,this.icon,this.items,this.nowFlag,calendar.getTime());
+		Log.d("main",String.valueOf(this.iconNum));
+		OverlayPlus plus = new OverlayPlus(this, this.iconNum,this.items,this.nowFlag,calendar.getTime(),this.friend,this.userName);
 		plus.addGp(nowGp);
 		map.getOverlays().add(plus);
-	
-		
-	}
-	
-	//ダイアログに画像を表示させる　しかし使わなかった！
-	public void onClickImgDailog(View v){
-		
-		ImageGetter imageGetter = new ImageGetter() {
-			
-			@Override
-			public Drawable getDrawable(String source) {
-				// TODO 自動生成されたメソッド・スタブ
-				
-				int id = Integer.parseInt(source);
-				Drawable d = getResources().getDrawable(id);
-				d.setBounds(0,0,d.getIntrinsicWidth(),d.getIntrinsicHeight());
-				Log.d("llogg",source);
-				return d;
-			}
-		};
-		
-		
-		AlertDialog alerdiDialog = new AlertDialog.Builder(this).setMessage(Html.fromHtml
-				("画像テスト<br><img src='"+R.drawable.ic_launcher +"'/>",imageGetter,null)).create();
-		alerdiDialog.show();
-		
-		
-		
-				
 	}
 
 	@Override
@@ -702,9 +726,12 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 			public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
 					long arg3) {
 				// TODO 自動生成されたメソッド・スタブ
-				IconListData[] list = IconListData.values();//Enumを配列へセットよく使うらしい
-				icon = list[arg2].getId();//クリックしたアイコンのＩＤをセット
+				
+				
+				//IconListData[] list = IconListData.values();//Enumを配列へセットよく使うらしい
+				iconNum = arg2+1;//クリックしたアイコンのＩＤをセット
 				dia.dismiss();//対象のダイアログを閉じるメソッド
+				Log.d("MAin",String.valueOf(arg2)+":"+String.valueOf(iconNum));
 				
 			}
 		});
@@ -724,8 +751,15 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		SQLiteDatabase db = dbh.getReadableDatabase();
 		//dbh.test(db);
 		
+		Cursor c = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table' and name='"+date+"'", null);
+		boolean isEof = c.moveToFirst();
+		if(!isEof){
+			dbh.dbTableCreate(db);
+			Log.d("readDB","テーブル作成");
+		}
+		
 		Cursor cursor = db.query(date,new String[]{"Longitude","Latitude","MapDate","Message","Icon"},null,null,null,null,null);
-		Boolean isEof = cursor.moveToFirst();
+		isEof = cursor.moveToFirst();
 		
 		
 		GeoPoint setGp;
@@ -770,20 +804,16 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 		for(RunningServiceInfo r:serviceList){//.getClassName()でサービス名を取得し.startedで起動状態の確認
 			//Log.d("service",LocationService.class.getCanonicalName());
 			if(LocationService.class.getCanonicalName().equals(r.service.getClassName())){
-				
+				Log.d("serviceチェック","起動済みです");
 				return true;
 				}
-			}
+		}
 		
 		//定期的に実行するAlarmManagerの設定
 		Intent intent = new Intent(MainActivity.this,LocationService.class);
-		PendingIntent service = PendingIntent.getService(MainActivity.this, 0, intent, 0);
-		//intent.putExtra("time", this.readPreferences());
-		long first = System.currentTimeMillis();
-		AlarmManager alarmManager = (AlarmManager)getSystemService(ALARM_SERVICE);
-		//一番目の引数でスリープ状態の時の行動をセット　(スリープ解除か継続か)
-		alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, first, this.readPreferences(), service);
-		
+		this.startService(intent);
+		Log.d("serviceチェック","LService起動しました");
+
 		return false;
 	}
 
@@ -936,5 +966,187 @@ public class MainActivity extends MapActivity implements LocationListener{//goog
 			// TODO: handle exception
 		}
 	}
+	
+	public void friendGetName(){
+		
+		String setUrl = this.getResources().getString(R.string.url) + "friendname.php";
+		
+		HttpClient httpclient = new DefaultHttpClient();
+		HttpParams httpParams = httpclient.getParams();
+		httpParams.setParameter("http.useragent", "snsmap");//User-agentの設定　通常はブラウザとか端末とか
+		HttpPost httppost = new HttpPost(setUrl);
+		
+		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+		nameValuePairs.add(new BasicNameValuePair("user", this.user));
+		XmlPullParser xmlPP = Xml.newPullParser();
+		String friendName=null;
+		
+		OverlayItems item=new OverlayItems();
+		
+		try{
 
+			httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs,HTTP.UTF_8));
+			HttpResponse respone = httpclient.execute(httppost);
+			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			respone.getEntity().writeTo(byteArrayOutputStream);
+
+
+			if(respone.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+				Log.d("friend",byteArrayOutputStream.toString());
+
+				StringReader strReader = new StringReader(byteArrayOutputStream.toString());
+				xmlPP.setInput(strReader);
+
+				Log.d("friend",String.valueOf(this.friend.size()));
+				Integer eventType = xmlPP.getEventType();
+				while(eventType != XmlPullParser.END_DOCUMENT){
+					
+					
+//					if(eventType == XmlPullParser.START_TAG && "name".equals(xmlPP.getName())){
+//						friendName = xmlPP.nextText();//,区切りで戻ってくる
+//						Log.d("php",friendName);
+//					}
+					
+					if(eventType == XmlPullParser.START_TAG && "fid".equals(xmlPP.getName()))
+						item.setFriendId(xmlPP.nextText());					
+					if(eventType == XmlPullParser.START_TAG && "fname".equals(xmlPP.getName()))
+						item.setFriendName(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "ficon".equals(xmlPP.getName()))
+						item.setIconNum(Integer.valueOf(xmlPP.nextText()));
+					if(eventType == XmlPullParser.START_TAG && "fgp".equals(xmlPP.getName()))
+						item.setStringToGeoPoint(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "fdate".equals(xmlPP.getName()))
+						item.setDate(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "fmsg".equals(xmlPP.getName()))
+						item.setMessage(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "end".equals(xmlPP.getName())){
+						this.friend.add(item);
+						item = new OverlayItems();
+						Log.d("friend1",String.valueOf(this.friend.size()));
+					}
+					
+					
+					
+					
+					//次のタグへ
+					eventType = xmlPP.next();
+				}
+				this.drawOverlay();
+			}else
+				Log.d("newUser","errer");
+
+
+		}catch (Exception e) {
+			// TODO: handle exception
+			Log.d("php2",e.toString());
+			Toast.makeText(this, "サーバーと接続できません", Toast.LENGTH_SHORT).show();
+		}
+	}
+	
+	public void setUserName(){
+		this.readPreferences(this.USER_NAME);
+		if(this.userName.equals("")){
+			
+			final EditText input = new EditText(this);
+			input.setHint("8文字まで入力できます");//setHint　薄い文字で表示されるヤツ
+			InputFilter[] filters = new InputFilter[1];
+			filters[0] = new InputFilter.LengthFilter(8);
+			input.setFilters(filters);//入力できる文字数を8文字までにする
+			
+			
+			new AlertDialog.Builder(this).setTitle("ニックネームを入力してください")
+			.setView(input)
+			.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+				
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					// TODO 自動生成されたメソッド・スタブ
+					if(input.getText().toString().equals("")){//EditTextに何も入力しないと空文字が入る
+						setUserName();
+					}else{
+						userName = input.getText().toString();
+						writePreferences(USER_NAME);
+					}
+				}
+			})
+			.show();
+			
+		}
+	}
+	
+	public void setFriend(String friend){
+		
+		String setUrl = this.getResources().getString(R.string.url) + "friendreq.php";
+		
+		HttpClient httpclient = new DefaultHttpClient();
+		HttpParams httpParams = httpclient.getParams();
+		httpParams.setParameter("http.useragent", "snsmap");//User-agentの設定　通常はブラウザとか端末とか
+		HttpPost httppost = new HttpPost(setUrl);
+		
+		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+		nameValuePairs.add(new BasicNameValuePair("user", this.user));
+		nameValuePairs.add(new BasicNameValuePair("request", friend));
+		XmlPullParser xmlPP = Xml.newPullParser();
+		
+		try{
+
+			httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs,HTTP.UTF_8));
+			HttpResponse respone = httpclient.execute(httppost);
+			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			respone.getEntity().writeTo(byteArrayOutputStream);
+
+
+			if(respone.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+				Log.d("friend",byteArrayOutputStream.toString());
+
+				StringReader strReader = new StringReader(byteArrayOutputStream.toString());
+				xmlPP.setInput(strReader);
+
+				/*
+				Log.d("friend",String.valueOf(this.friend.size()));
+				Integer eventType = xmlPP.getEventType();
+				while(eventType != XmlPullParser.END_DOCUMENT){
+					
+					
+//					if(eventType == XmlPullParser.START_TAG && "name".equals(xmlPP.getName())){
+//						friendName = xmlPP.nextText();//,区切りで戻ってくる
+//						Log.d("php",friendName);
+//					}
+					if(eventType == XmlPullParser.START_TAG && "fid".equals(xmlPP.getName()))
+						item.setFriendId(xmlPP.nextText());					
+					if(eventType == XmlPullParser.START_TAG && "fname".equals(xmlPP.getName()))
+						item.setFriendName(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "ficon".equals(xmlPP.getName()))
+						item.setIconNum(Integer.valueOf(xmlPP.nextText()));
+					if(eventType == XmlPullParser.START_TAG && "fgp".equals(xmlPP.getName()))
+						item.setStringToGeoPoint(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "fdate".equals(xmlPP.getName()))
+						item.setDate(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "fmsg".equals(xmlPP.getName()))
+						item.setMessage(xmlPP.nextText());
+					if(eventType == XmlPullParser.START_TAG && "end".equals(xmlPP.getName())){
+						this.friend.add(item);
+						item = new OverlayItems();
+						Log.d("friend1",String.valueOf(this.friend.size()));
+					}
+					
+					
+					
+					
+					//次のタグへ
+					eventType = xmlPP.next();
+				}
+				this.drawOverlay();
+				*/
+			}else
+				Log.d("newUser","errer");
+		}catch (Exception e) {
+			// TODO: handle exception
+			Log.d("php2",e.toString());
+			Toast.makeText(this, "サーバーと接続できません", Toast.LENGTH_SHORT).show();
+		}
+		
+		
+		
+	}
 }

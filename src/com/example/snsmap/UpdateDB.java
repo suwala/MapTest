@@ -21,7 +21,8 @@ public class UpdateDB extends DataAbs {
 		
 		//データベースの更新
 		val.put("Message", input);
-		val.put("Icon", R.drawable.icon02);
+		
+		val.put("Icon", icon);
 		db.update(sdf1.format(date), val,"_id = "+(hitIndex+1),null);//3番目引数がString　けれどintを渡してるような
 		
 		//アイテムの更新

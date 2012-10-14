@@ -63,7 +63,6 @@ public class Login extends Activity {
 	private final int USER_PREFS = 2;
 	private InputFilter[] filter = {new MyFilter(8)};
 	private InputFilter[] filterPass = {new MyFilter(16)};
-	private String url = "http://192.168.11.16/snsmap/main/";
 	private String user,pass;
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -112,7 +111,8 @@ public class Login extends Activity {
 			String pass = editpass.getText().toString();
 			
 			
-			String setUrl = this.url + "testver.php";
+			String setUrl = getResources().getString(R.string.url) + "testver.php";
+			Log.d("url",setUrl);
 			
 			
 			HttpClient httpclient = new DefaultHttpClient();
@@ -164,6 +164,7 @@ public class Login extends Activity {
 						if(eventType == XmlPullParser.START_TAG && "flag".equals(xmlPP.getName())){//bodyタグのチェック
 							if("ok".equals(xmlPP.nextText())){
 								Log.d("xmlPP",xmlPP.getText());
+								this.user = name;
 								phpFlag = true;
 							}else if("p_miss".equals(xmlPP.getText())){
 								phpFlag = false;
@@ -188,7 +189,9 @@ public class Login extends Activity {
 					}
 					
 					if(phpFlag){
+						
 						tv.setText("");
+						writePreferences(USER_PREFS);
 						Toast.makeText(this, "ログインしました", Toast.LENGTH_SHORT).show();
 						Intent i = new Intent(this,MainActivity.class);
 						startActivity(i);
@@ -272,7 +275,7 @@ public class Login extends Activity {
 	
 
 	public void newUserSet(String user,String pass){
-		String setUrl = this.url + "registarion.php";
+		String setUrl = this.getResources().getString(R.string.url) + "registarion.php";
 		
 		HttpClient httpclient = new DefaultHttpClient();
 		HttpParams httpParams = httpclient.getParams();
@@ -296,6 +299,7 @@ public class Login extends Activity {
 				Toast.makeText(this, this.user+"で新規作成しました", Toast.LENGTH_SHORT).show();
 				
 				this.writePreferences(this.USER_PREFS);
+				
 				
 				Intent i = new Intent(this,MainActivity.class);
 				startActivity(i);

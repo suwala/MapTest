@@ -16,14 +16,18 @@ public final class R {
         public static final int padding_small=0x7f040000;
     }
     public static final class drawable {
-        public static final int ic_action_search=0x7f020000;
-        public static final int ic_launcher=0x7f020001;
-        public static final int icon01=0x7f020002;
-        public static final int icon02=0x7f020003;
-        public static final int icon03=0x7f020004;
-        public static final int icon04=0x7f020005;
-        public static final int icon05=0x7f020006;
-        public static final int icon06=0x7f020007;
+        public static final int hukidasi_9=0x7f020000;
+        public static final int ic_action_search=0x7f020001;
+        public static final int ic_launcher=0x7f020002;
+        public static final int icon01=0x7f020003;
+        public static final int icon02=0x7f020004;
+        public static final int icon03=0x7f020005;
+        public static final int icon04=0x7f020006;
+        public static final int icon05=0x7f020007;
+        public static final int icon06=0x7f020008;
+        public static final int icon07=0x7f020009;
+        public static final int icon08=0x7f02000a;
+        public static final int icon09=0x7f02000b;
     }
     public static final class id {
         public static final int button1=0x7f070004;
@@ -37,8 +41,8 @@ public final class R {
         public static final int logPass=0x7f07000b;
         public static final int logUser=0x7f07000a;
         public static final int mapview=0x7f070003;
+        public static final int menu_friend=0x7f070010;
         public static final int menu_gpout=0x7f070011;
-        public static final int menu_path=0x7f070010;
         public static final int menu_settime=0x7f07000f;
         public static final int menu_settings=0x7f07000e;
         public static final int textView2=0x7f070001;
@@ -62,11 +66,12 @@ public final class R {
         public static final int logPass=0x7f050008;
         public static final int logerrer=0x7f050009;
         public static final int loginButton=0x7f05000b;
+        public static final int menu_friend=0x7f050004;
         public static final int menu_gpout=0x7f050006;
         public static final int menu_now=0x7f050005;
-        public static final int menu_path=0x7f050004;
         public static final int menu_settings=0x7f050001;
         public static final int menu_timeset=0x7f050003;
         public static final int title_activity_main=0x7f050002;
+        public static final int url=0x7f05000c;
     }
 }

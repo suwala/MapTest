@@ -1,5 +1,6 @@
 package com.example.snsmap;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 
@@ -14,14 +15,40 @@ import com.google.android.maps.MapView;
 import com.google.android.maps.Overlay;
 import com.google.android.maps.Projection;
 
-public class OverlayItems  {
+public class OverlayItems  implements Serializable{
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	private GeoPoint gp;
 	private String message;
 	private Integer iconNum;
 	private String date;
-	
+	private String friendId;
+	private String friendName;
 
+	public void setFriendName(String _friendName){
+		this.friendName = _friendName;
+	}
+	
+	public String getFriendName(){
+		return this.friendName;
+	}
+	
+	public void setStringToGeoPoint(String str){
+		String[] gpStr = str.split(",");
+		this.gp = new GeoPoint(Integer.valueOf(gpStr[0]), Integer.valueOf(gpStr[1]));
+	}
+	
+	public void setFriendId(String _friendId){
+		this.friendId = _friendId;
+	}
+	
+	public String getFriendId(){
+		return this.friendId;
+	}
+	
 	public void setDate(String _date){
 		this.date = _date;
 	}
@@ -42,7 +69,7 @@ public class OverlayItems  {
 		this.iconNum = _iconNum;
 	}
 	
-	public int getIconNum(){
+	public Integer getIconNum(){
 		return this.iconNum;
 	}
 	
@@ -60,6 +87,5 @@ public class OverlayItems  {
 		this.message = _message;
 		this.gp = _gp;
 		this.iconNum = _iconNum; 
-		
 	}
 }

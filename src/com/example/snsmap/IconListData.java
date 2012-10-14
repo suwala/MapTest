@@ -11,9 +11,9 @@ public enum IconListData {
 	ICON4(R.drawable.icon04),
 	ICON5(R.drawable.icon05),
 	ICON6(R.drawable.icon06),
-	ICON7(R.drawable.icon01),
-	ICON8(R.drawable.icon02),
-	ICON9(R.drawable.icon03),;
+	ICON7(R.drawable.icon07),
+	ICON8(R.drawable.icon08),
+	ICON9(R.drawable.icon09),;
 
 	private int id;
 
@@ -24,4 +24,5 @@ public enum IconListData {
 	public int getId(){
 		return this.id;
 	}
+	
 }

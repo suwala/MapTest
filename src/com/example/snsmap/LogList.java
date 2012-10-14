@@ -1,5 +1,9 @@
 package com.example.snsmap;
 
+import java.util.ArrayList;
+
+import com.google.android.maps.GeoPoint;
+
 import android.app.ListActivity;
 import android.content.Intent;
 import android.database.Cursor;
@@ -20,8 +24,9 @@ public class LogList extends ListActivity{
 		Intent i = new Intent();
 		
 		//i.putExtra("time", time[position].getTime());
-		i.putExtra("date", (String)l.getItemAtPosition(position));
-		Log.d("date",(String)l.getItemAtPosition(position));
+		i.putExtra("friend", (String)l.getItemAtPosition(position));
+		i.putExtra("friendList", position);
+		Log.d("friend",(String)l.getItemAtPosition(position));
 		this.setResult(RESULT_OK, i);
 		//finish()でアクティビティを終了させる
 		this.finish();
@@ -31,28 +36,15 @@ public class LogList extends ListActivity{
 	protected void onCreate(Bundle savedInstanceState) {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onCreate(savedInstanceState);
-
-		DBHepler dbh = new DBHepler(this);
-		SQLiteDatabase db = dbh.getReadableDatabase();
-		boolean isEof;
-		Cursor cursor = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'",null);
-		isEof = cursor.moveToFirst();
 		
 		ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1);
-		/* adapter.add アイテムを追加します
-		 * 
-		 * DataBaseからテーブル名を読み取り
-		 * 先頭にDが付く場合のみadapterに追加する
-		 * (ワイルドカードが美味く作動しなかったため)
-		 * 
-		 */
-		while(isEof){
-			if(cursor.getString(1).indexOf("D") == 0)
-				adapter.add(cursor.getString(1));
-			isEof = cursor.moveToNext();
-		}
+		Intent intent = getIntent();
 		
-		dbh.close();
+		String[] str = intent.getStringArrayExtra("friend");
+		for(String item:str)
+			adapter.add(item);
+		
+		
 		
 		// アダプターを設定します
 		this.setListAdapter(adapter);

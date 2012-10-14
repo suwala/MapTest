@@ -3,6 +3,8 @@ package com.example.snsmap;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.google.android.maps.GeoPoint;
 
@@ -20,6 +22,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
@@ -45,6 +48,7 @@ public class LocationService extends Service implements LocationListener{
 	private KeyguardLock keylock;
 	private WakeLock wakelock;
 	private LocationManager location;
+	private Timer timer;
 	
 	@Override
 	public IBinder onBind(Intent arg0) {
@@ -88,57 +92,31 @@ public class LocationService extends Service implements LocationListener{
 	 * １０秒ごとにメソッドを実行しても
 	 * 最初に呼ばれてから設定した秒数で終了する
 	 * 
-	 * 
+	 * 現在常駐型なので関係なし
 	 */
 	@Override
 	public void onStart(Intent intent, int startId) {
 		// TODO 自動生成されたメソッド・スタブ
 		super.onStart(intent, startId);
 				
-		this.setRequestLocation(this.readPreferences());
-		this.lockReleace();
-		//Toast.makeText(this,String.valueOf(this.readPreferences()) , Toast.LENGTH_SHORT).show();
-		
-		
-		
-		Thread t = new Thread(){
-			@Override
-			public void run(){
-				try{
-					/*while(true){
-						
-						
-						
-						
-						//設定した時間分だけスリープ
-
-						sleep(readPreferences());
-					}*/
-					stopSelf();
-				}catch (Exception e) {
-					// TODO: handle exception
-				}
-			}
-		};
-		//スレッドのスタート
-		t.start();
+		this.startLocationService();
 		
 	}
 	
 	public void setRequestLocation(long i){
 		//LocationManagerの取得 位置情報サービス取得
-		this.location = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
+		location = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
 		/*位置情報が変化したときのリスナの登録　requestLocationUpdates(サービスGPS/3G/Wifi,位置情報の更新間隔ms,位置情報の最低更新距離m,登録するリスナ);
 		秒数をセットしただけだと怒涛の勢いで更新されたので　距離も1mに設定
 		*/
 		location.requestLocationUpdates(LocationManager.GPS_PROVIDER, i, 1,this);
 		location.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, i, 1,this);
-		
 	}
 
 	@Override
 	public void onLocationChanged(Location location) {
 		// TODO 自動生成されたメソッド・スタブ
+		
 		
 		GeoPoint2 gp = new GeoPoint2((int)(location.getLatitude()*1E6), (int)(location.getLongitude()*1E6));
 		Date date = new Date(System.currentTimeMillis());
@@ -233,8 +211,39 @@ public class LocationService extends Service implements LocationListener{
 		boolean isEof = c.moveToFirst();
 		if(!isEof)
 			dbh.dbTableCreate(db);
+	}
+	
+	public void startLocationService(){
+		this.timer = new Timer();
+		final Handler handler = new Handler();
 		
-		
-		
+		this.timer.schedule(new TimerTask() {
+			
+			@Override
+			public void run() {
+				// TODO 自動生成されたメソッド・スタブ
+				handler.post(new Runnable() {
+					
+					@Override
+					public void run() {
+						// TODO 自動生成されたメソッド・スタブ
+						
+						try{
+
+							setRequestLocation(readPreferences());
+							lockReleace();
+							
+
+							//stopSelf();//このサービスの終了
+
+						}catch (Exception e) {
+							// TODO: handle exception
+							Log.d("エラー",e.toString());
+						}
+						
+					}
+				});
+			}
+		}, 0,this.readPreferences());
 	}
 }

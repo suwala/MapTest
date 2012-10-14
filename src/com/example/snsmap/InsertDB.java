@@ -24,7 +24,7 @@ public class InsertDB extends DataAbs{
 
 	@Override
 	public void toData(ContentValues val, GeoPoint now, String input,
-			Date date, SQLiteDatabase db, int hitIndex, int icon) {
+			Date date, SQLiteDatabase db, int hitIndex, int iconNum) {
 		// TODO 自動生成されたメソッド・スタブ
 		
 		//DBへ新規ポイントの書き込み
@@ -32,7 +32,7 @@ public class InsertDB extends DataAbs{
 		val.put("Latitude",now.getLatitudeE6());
 		val.put("MapDate", new SimpleDateFormat("HH':'mm").format(Calendar.getInstance().getTime()));
 		val.put("Message", input);
-		val.put("Icon", icon);
+		val.put("Icon", iconNum);
 		
 		db.insert(sdf1.format(date), null,val);
 		Log.d("inser","かきこんだ");

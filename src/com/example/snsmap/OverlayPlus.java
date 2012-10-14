@@ -1,20 +1,40 @@
 package com.example.snsmap;
 
 import java.util.Date;
+import java.io.ByteArrayOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.HttpParams;
+import org.apache.http.protocol.HTTP;
 
 import android.app.AlertDialog;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.DialogInterface.OnClickListener;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.Paint.FontMetrics;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -37,38 +57,36 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
  */
 	private Context context;
 	private ArrayList<OverlayItems> myItem;
-	private Drawable icon;
-	private int iconResoce;
+	private int iconNum;
 	private GeoPoint now;
 	private Date date;
 	private Boolean nowFlag;
 	
 	private GestureDetector gestureDetector;
 	private MotionEvent event;
+	private List<OverlayItems> friend = new ArrayList<OverlayItems>();
+	private String userName;
 	
 	//addの方法に問題あり過去のDBにまでadd出来てる　過去のポイントへ書き込んでない
 	//db.updateで上書きできるらしいぞ
+	//アイコンが正しく表示されてない
 	
 	//コレが実行されてる
-	public OverlayPlus(Context context,Drawable icon,int icon2,ArrayList<OverlayItems> myItem,Boolean _flag,Date _date){
+	public OverlayPlus(Context context,int iconNum,ArrayList<OverlayItems> myItem,Boolean _flag,Date _date,ArrayList<OverlayItems> friend,String userName){
 		this.context = context;
-		this.icon = icon;
-		this.iconResoce = icon2;
-		this.myItem = myItem;
+		this.iconNum = iconNum;
+		
+		//myItemを渡すと自分のが　friendを渡すとフレンドのアイコンが表示される
+		//this.myItem = myItem; 
+		this.myItem = friend;
 		this.nowFlag = _flag;
 		this.date = _date;
 		//このクラスをリスナーとして設定
 		this.gestureDetector = new GestureDetector(context,this);
+		this.friend = friend;
+		this.userName = userName;
 		
 	}
-	
-	
-	
-	//OverlayItemsを見られるようにする
-	public synchronized void setItem(ArrayList<OverlayItems> items){
-		this.myItem = items;
-	}
-	
 	
 	//引数gpはタッチしたポイントのGeoPointになる
 	@Override
@@ -104,12 +122,16 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 							Log.d("inser",String.valueOf(myItem.size()));
 							OverlayItems item = new OverlayItems();
 							
-							SimpleDateFormat sdf1 = new SimpleDateFormat("'D'yyMMdd");
-							item.setItem(sdf1.format(date), input.getText().toString(), gp, iconResoce);
+							date = new Date(System.currentTimeMillis());
+							
+							SimpleDateFormat sdf1 = new SimpleDateFormat("HH':'mm");
+							item.setItem(sdf1.format(date), input.getText().toString(), now, iconNum);
 							myItem.add(item);
 							Log.d("inser",String.valueOf(myItem.size()));
 							DataBaseLogic dbl = new InsertDB();
-							dbl.setData(hitIndex, input.getText().toString(), now, context, date,iconResoce);
+							dbl.setData(hitIndex, input.getText().toString(), now, context, date,iconNum);
+							
+							serverSend(item);
 							
 							((MainActivity)context).pinClearS();
 							((MainActivity)context).drawOverlay();
@@ -144,6 +166,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 						// TODO 自動生成されたメソッド・スタブ
 						
 						if(!input.getText().toString().equals("")){//入力があった場合
+							
 							Log.d("inputtext","size="+String.valueOf(input.getTextSize()));
 							Log.d("inputtext","size="+String.valueOf(input.getText()));
 							
@@ -151,7 +174,8 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 							
 							Toast.makeText(context, myItem.get(hitIndex).getDate(), Toast.LENGTH_SHORT).show();
 							DataBaseLogic dbl = new UpdateDB();
-							dbl.setData(hitIndex, input.getText().toString(),context, date, myItem,iconResoce);
+							Log.d("DB更新",String.valueOf(iconNum));
+							dbl.setData(hitIndex, input.getText().toString(),context, date, myItem,iconNum);
 							((MainActivity)context).pinClearS();
 							((MainActivity)context).drawOverlay();
 													
@@ -170,7 +194,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				.show();
 			}else{//既存Pにヒットしメッセージが入力済みの場合
 				
-				Toast.makeText(context, this.myItem.get(hitIndex).getDate()+"  "+this.myItem.get(hitIndex).getMessage(), Toast.LENGTH_SHORT).show();
+				Toast.makeText(context, this.myItem.get(hitIndex).getDate()+"  "+this.myItem.get(hitIndex).getFriendName()+"\n"+this.myItem.get(hitIndex).getMessage(), Toast.LENGTH_SHORT).show();
 				
 			}
 			
@@ -188,6 +212,7 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 
 		Point hit = new Point();
 		pj.toPixels(gp, hit);
+		Drawable icon = context.getResources().getDrawable(NumToResources.toResources(this.iconNum));
 		
 		Log.d("oveelay",String.valueOf(this.myItem.size()));
 		
@@ -197,11 +222,12 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 				pj.toPixels(this.myItem.get(i).getGeoPoint(), point);
 				//pj.toPixels(this.now, point);
 
+				
 
-				int halfWidth = this.icon.getIntrinsicWidth()*2;
+				int halfWidth = icon.getIntrinsicWidth()*2;
 				int left = point.x - halfWidth;
 				int right = point.x + halfWidth;
-				int top = point.y - this.icon.getIntrinsicHeight()*2;
+				int top = point.y - icon.getIntrinsicHeight()*2;
 				int bottom = point.y;
 
 
@@ -215,10 +241,10 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 		}else{
 			Point point = new Point();
 			pj.toPixels(this.now, point);
-			int halfWidth = this.icon.getIntrinsicWidth()*2;
+			int halfWidth = icon.getIntrinsicWidth()*2;
 			int left = point.x - halfWidth;
 			int right = point.x + halfWidth;
-			int top = point.y - this.icon.getIntrinsicHeight()*2;
+			int top = point.y - icon.getIntrinsicHeight()*2;
 			int bottom = point.y;
 
 
@@ -239,39 +265,42 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 		super.draw(canvas, mapView, shadow);
 		if(!shadow){
 			
-			
+			Drawable icon = context.getResources().getDrawable(NumToResources.toResources(this.iconNum));
 			Projection pj = mapView.getProjection();
 			Point point = new Point();
+			
+			
+					
+			
 			//現在地点を描画 flagで管理
 			if(this.nowFlag){
 				pj.toPixels(this.now, point);
 				Rect bound = new Rect();
 				
-				int halfWidth = this.icon.getIntrinsicWidth()/2;
+				int halfWidth = icon.getIntrinsicWidth()/2;
 				
 				bound.left = point.x - halfWidth;
 				bound.right = point.x + halfWidth;
-				bound.top = point.y - this.icon.getIntrinsicHeight();
+				bound.top = point.y - icon.getIntrinsicHeight();
 				bound.bottom = point.y;
 				
-				this.icon.setBounds(bound);
-				this.icon.draw(canvas);		
+				icon.setBounds(bound);
+				icon.draw(canvas);		
 			}else{
 			
 			//GP全てに描画する場合
 
 				for(OverlayItems i:this.myItem){
-					pj.toPixels(i.getGeoPoint(), point);
+				//for(OverlayItems i:this.friend){
+					pj.toPixels(i.getGeoPoint(), point);//GPをPointに渡してる？ここで描画位置の特定か
 					Rect bound = new Rect();
 
-					Drawable icon,icon2;
-
-				
+				/*
 					if(null != i.getMessage())
-						Log.d("plus",i.getMessage());
+						Log.d("plusMesse",i.getMessage());
+					*/
 					
-					
-					if(i.getIconNum() == 0){
+					if(i.getIconNum() == 0){//DBのIconNumがnull=0の時　多分使わない
 						icon = this.context.getResources().getDrawable(R.drawable.icon01);
 						
 						int halfWidth = icon.getIntrinsicWidth()/2;
@@ -285,20 +314,58 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 						icon.draw(canvas);
 						
 						
-					}else{
-						icon2 = this.context.getResources().getDrawable(i.getIconNum());
-						Log.d("plus",String.valueOf(i.getIconNum()));
-						Log.d("plus+",String.valueOf(R.drawable.icon01));
-						
-						int halfWidth = icon2.getIntrinsicWidth()/2;
+					}else{//DBにiconNumが入ってるとき
+												
+						int resources = NumToResources.toResources(i.getIconNum());
+						icon = this.context.getResources().getDrawable(resources);
+												
+						int halfWidth = icon.getIntrinsicWidth()/2;
 
+						//描画領域の設定みたい
 						bound.left = point.x - halfWidth;
 						bound.right = point.x + halfWidth;
-						bound.top = point.y - icon2.getIntrinsicHeight();
+						bound.top = point.y - icon.getIntrinsicHeight();
 						bound.bottom = point.y;
 						
-						icon2.setBounds(bound);
-						icon2.draw(canvas);
+						icon.setBounds(bound);
+						icon.draw(canvas);
+						
+						//SnsMapの追加分 アイコンの上に吹き出しを描画する 描画順があるので
+						//Text生成　生成したTextの幅を元に吹き出しを描画の順で行う
+						Drawable window = context.getResources().getDrawable(R.drawable.hukidasi_9);
+												
+						
+						//　textを描画する
+						Paint paint = new Paint();
+						paint.setAntiAlias(true);
+						paint.setColor(Color.BLACK);
+						paint.setTextSize(22);
+						
+						
+						Rect rect = new Rect();
+						String freMessa = i.getDate()+" "+i.getMessage();
+						paint.getTextBounds(freMessa, 0, freMessa.length(), rect);
+						
+						FontMetrics fm = paint.getFontMetrics();
+						int mtw = (int) paint.measureText(freMessa);//textの幅
+						int fmHeight = (int) (Math.abs(fm.top)+fm.bottom);//高さ
+						Log.d("draw",String.valueOf(mtw)+":"+String.valueOf(fmHeight));
+						
+						bound.left = point.x - mtw/2;
+						bound.right = point.x + mtw/2+20;
+						bound.top = point.y - icon.getIntrinsicHeight()-80;
+						bound.bottom = point.y - icon.getIntrinsicHeight();
+						
+						window.setBounds(bound);
+						window.draw(canvas);
+						canvas.drawText(freMessa, point.x-mtw/2+10, point.y-icon.getIntrinsicHeight()-40, paint);
+						
+						String freName = i.getFriendName();
+						paint.getTextBounds(freMessa, 0, freMessa.length(), rect);
+						fm = paint.getFontMetrics();
+						mtw = (int) paint.measureText(freMessa);//textの幅
+						fmHeight = (int) (Math.abs(fm.top)+fm.bottom);//高さ
+						canvas.drawText(freName, point.x-mtw/3, point.y+fmHeight/2, paint);
 					}
 					/*
 					int halfWidth = icon.getIntrinsicWidth()/2;
@@ -381,4 +448,51 @@ public class OverlayPlus extends Overlay implements GestureDetector.OnGestureLis
 		return false;
 	}
 	
+	public void serverSend(OverlayItems item){
+		SharedPreferences prefs = context.getSharedPreferences("snsmap", Context.MODE_PRIVATE);
+		String user = prefs.getString("user", null);
+		
+		String setUrl = context.getResources().getString(R.string.url) + "maps.php";
+		
+		HttpClient httpclient = new DefaultHttpClient();
+		HttpParams httpParams = httpclient.getParams();
+		httpParams.setParameter("http.useragent", "snsmap");//User-agentの設定　通常はブラウザとか端末とか
+		HttpPost httppost = new HttpPost(setUrl);
+		
+		List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(1);
+		nameValuePairs.add(new BasicNameValuePair("user", user));
+		nameValuePairs.add(new BasicNameValuePair("dates", item.getDate()));//Date
+		nameValuePairs.add(new BasicNameValuePair("gp", item.getGeoPoint().toString()));//Gp
+		nameValuePairs.add(new BasicNameValuePair("icon", item.getIconNum().toString()));//ここまでええええええ
+		nameValuePairs.add(new BasicNameValuePair("message", item.getMessage()));
+		nameValuePairs.add(new BasicNameValuePair("userName", this.userName));
+		
+		//imorida:D121007:33555876,130305253:2130837506:あたま
+		Log.d("SendData",user+":"+item.getDate()+":"+item.getGeoPoint().toString()+":"+item.getIconNum().toString()+":"+item.getMessage());
+		
+		try{
+			httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs,HTTP.UTF_8));
+			HttpResponse respone = httpclient.execute(httppost);
+			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			respone.getEntity().writeTo(byteArrayOutputStream);
+			
+			if(respone.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+				
+				Log.d("maps.php",":"+byteArrayOutputStream.toString());
+				Toast.makeText(context, "位置情報を登録しました", Toast.LENGTH_SHORT).show();
+				
+				
+				
+			}
+		}catch (Exception e) {
+			// TODO: handle exception
+			Toast.makeText(context, "サーバーと接続できません", Toast.LENGTH_SHORT).show();
+		}
+	}
+	
+	public void getFriendData(){
+		if(this.friend.size()!=0){
+			
+		}
+	}
 }
